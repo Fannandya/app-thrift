@@ -3,12 +3,15 @@ package com.mamay.cobain.data.repository
 import com.mamay.cobain.data.dao.ThriftItemStorage
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
 
 class ThriftItemRepository(private val storage: ThriftItemStorage) {
     val allItems: Flow<List<ThriftItem>> = storage.itemsFlow
 
     val allCategories: Flow<List<ItemCategory>> = storage.categoriesFlow
+
+    val allSales: Flow<List<ThriftSale>> = storage.salesFlow
 
     fun insert(item: ThriftItem) = storage.insert(item)
 
@@ -21,4 +24,6 @@ class ThriftItemRepository(private val storage: ThriftItemStorage) {
     fun insertCategory(name: String) = storage.insertCategory(name)
 
     fun deleteCategory(category: ItemCategory) = storage.deleteCategory(category)
+
+    fun insertSale(sale: ThriftSale) = storage.insertSale(sale)
 }

@@ -3,6 +3,7 @@ package com.mamay.cobain.data.dao
 import android.content.Context
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,15 +20,23 @@ class ThriftItemStorage(private val context: Context) {
     private val categoriesFile: File
         get() = File(context.filesDir, categoriesFilename)
 
+    private val salesFilename = "thrift_sales.json"
+    private val salesFile: File
+        get() = File(context.filesDir, salesFilename)
+
     private val _itemsFlow = MutableStateFlow<List<ThriftItem>>(emptyList())
     val itemsFlow: Flow<List<ThriftItem>> = _itemsFlow.asStateFlow()
 
     private val _categoriesFlow = MutableStateFlow<List<ItemCategory>>(emptyList())
     val categoriesFlow: Flow<List<ItemCategory>> = _categoriesFlow.asStateFlow()
 
+    private val _salesFlow = MutableStateFlow<List<ThriftSale>>(emptyList())
+    val salesFlow: Flow<List<ThriftSale>> = _salesFlow.asStateFlow()
+
     init {
         loadItems()
         loadCategories()
+        loadSales()
     }
 
     private fun loadItems() {
@@ -108,5 +117,35 @@ class ThriftItemStorage(private val context: Context) {
     fun deleteCategory(category: ItemCategory) {
         val updatedList = _categoriesFlow.value.filter { it.id != category.id }
         saveCategories(updatedList)
+    }
+
+    private fun loadSales() {
+        val sales = if (salesFile.exists()) {
+            try {
+                val json = salesFile.readText()
+                Json.decodeFromString(ListSerializer(ThriftSale.serializer()), json)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+        _salesFlow.value = sales
+    }
+
+    private fun saveSales(sales: List<ThriftSale>) {
+        try {
+            val json = Json.encodeToString(ListSerializer(ThriftSale.serializer()), sales)
+            salesFile.writeText(json)
+            _salesFlow.value = sales
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun insertSale(sale: ThriftSale) {
+        val newId = (_salesFlow.value.maxOfOrNull { it.id } ?: 0) + 1
+        val saleWithId = sale.copy(id = newId)
+        saveSales(_salesFlow.value + saleWithId)
     }
 }

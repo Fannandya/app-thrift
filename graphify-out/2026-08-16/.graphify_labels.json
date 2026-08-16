@@ -17,6 +17,7 @@
   "15": "App Launcher Icon (xxxhdpi)",
   "16": "build.gradle.kts",
   "17": "settings.gradle.kts",
-  "18": "ThriftItemStorage",
-  "19": "AGENTS.md"
+  "18": "ThriftViewModel",
+  "19": "AGENTS.md",
+  "20": "ItemCategory"
 }

@@ -40,14 +40,15 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.items.collectAsState()
+    val sales by viewModel.sales.collectAsState()
 
-    val totalItems = items.sumOf { it.quantity }
-    val soldItems = items.filter { it.isSold }.sumOf { it.quantity }
-    val availableItems = totalItems - soldItems
-    val totalRevenue = items.filter { it.isSold }.sumOf { it.quantity * it.sellPrice }
+    val availableItems = items.sumOf { it.quantity }
+    val soldItems = sales.sumOf { it.quantity }
+    val totalItems = availableItems + soldItems
+    val totalRevenue = sales.sumOf { it.totalPrice }
     val totalInvestment = items.sumOf { it.quantity * it.buyPrice }
     val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity * it.sellPrice }
-    val recentItems = items.takeLast(5).reversed()
+    val recentSales = sales.sortedByDescending { it.timestamp }.take(5)
 
     Column(
         modifier = modifier
@@ -134,9 +135,9 @@ fun DashboardScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        if (recentItems.isEmpty()) {
+        if (recentSales.isEmpty()) {
             Text(
-                text = "Belum ada transaksi. Tambahkan barang dari menu Inventaris.",
+                text = "Belum ada transaksi. Layani penjualan dari menu Kasir.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -147,7 +148,7 @@ fun DashboardScreen(
                     .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                     .padding(horizontal = 16.dp)
             ) {
-                recentItems.forEachIndexed { index, item ->
+                recentSales.forEachIndexed { index, sale ->
                     if (index > 0) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -159,24 +160,21 @@ fun DashboardScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = item.name,
+                                text = sale.itemName,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Ukuran ${item.size} · Jumlah ${item.quantity}",
+                                text = "Ukuran ${sale.size} · Jumlah ${sale.quantity}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
-                            text = if (item.isSold) "+Rp${item.sellPrice}" else "Rp${item.sellPrice}",
+                            text = "+Rp${sale.totalPrice}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (item.isSold)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }

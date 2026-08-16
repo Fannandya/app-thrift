@@ -1,10 +1,9 @@
 {
   "0": "PRD Inventaris Pakaian Thrift",
   "1": "ThriftItem",
-  "2": "DashboardScreen.kt",
+  "2": "MainTab",
   "3": "MainActivity.kt",
   "4": "Android Launcher Icon (mdpi)",
-  "5": "Tabel thrift_items",
   "6": "AndroidManifest.xml",
   "7": "gradlew",
   "8": "ExampleInstrumentedTest",

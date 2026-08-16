@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.data.entity.ThriftSale
 import com.mamay.cobain.data.repository.ThriftItemRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +15,9 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val categories: StateFlow<List<ItemCategory>> = repository.allCategories
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val sales: StateFlow<List<ThriftSale>> = repository.allSales
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     fun addItem(
@@ -55,5 +59,26 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
 
     fun deleteCategory(category: ItemCategory) {
         repository.deleteCategory(category)
+    }
+
+    fun recordSale(item: ThriftItem, quantity: Int) {
+        val soldQuantity = quantity.coerceAtMost(item.quantity)
+        val updatedItem = item.copy(
+            quantity = item.quantity - soldQuantity,
+            isSold = item.isSold || (item.quantity - soldQuantity) == 0
+        )
+        repository.update(updatedItem)
+        repository.insertSale(
+            ThriftSale(
+                itemId = item.id,
+                itemName = item.name,
+                size = item.size,
+                category = item.category,
+                quantity = soldQuantity,
+                sellPrice = item.sellPrice,
+                totalPrice = item.sellPrice * soldQuantity,
+                timestamp = System.currentTimeMillis()
+            )
+        )
     }
 }
