@@ -16,3 +16,5 @@ local.properties
 .kotlin
 .claude
 inventaris-thrift.zip
+AGENTS.md
+graphify-out
