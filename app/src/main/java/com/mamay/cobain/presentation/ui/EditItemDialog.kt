@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ItemCategory
+import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,6 +35,7 @@ import com.mamay.cobain.data.entity.ThriftItem
 fun EditItemDialog(
     item: ThriftItem,
     categories: List<ItemCategory>,
+    sizes: List<ItemSize>,
     onDismiss: () -> Unit,
     onSave: (ThriftItem) -> Unit
 ) {
@@ -57,12 +59,13 @@ fun EditItemDialog(
                     modifier = Modifier.padding(bottom = 8.dp),
                     singleLine = true
                 )
-                TextField(
-                    value = size.value,
-                    onValueChange = { size.value = it },
-                    label = { Text("Ukuran") },
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    singleLine = true
+                SizeDropdown(
+                    sizes = sizes,
+                    selectedSize = size.value,
+                    onSizeSelected = { size.value = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
                 )
                 CategoryDropdown(
                     categories = categories,
@@ -141,6 +144,56 @@ fun EditItemDialog(
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SizeDropdown(
+    sizes: List<ItemSize>,
+    selectedSize: String,
+    onSizeSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
+        TextField(
+            value = selectedSize,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Ukuran") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth(),
+            singleLine = true
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            if (sizes.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("Belum ada ukuran") },
+                    onClick = { expanded = false }
+                )
+            } else {
+                sizes.forEach { size ->
+                    DropdownMenuItem(
+                        text = { Text(size.name) },
+                        onClick = {
+                            onSizeSelected(size.name)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

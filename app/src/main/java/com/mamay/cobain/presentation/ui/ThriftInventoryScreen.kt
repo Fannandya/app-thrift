@@ -33,6 +33,7 @@ fun ThriftInventoryScreen(
 ) {
     val items = viewModel.items.collectAsState()
     val categories = viewModel.categories.collectAsState()
+    val sizes = viewModel.sizes.collectAsState()
     val showAddDialog = remember { mutableStateOf(false) }
     val selectedItem = remember { mutableStateOf<ThriftItem?>(null) }
     val showEditDialog = remember { mutableStateOf(false) }
@@ -94,6 +95,7 @@ fun ThriftInventoryScreen(
     if (showAddDialog.value) {
         AddItemDialog(
             categories = categories.value,
+            sizes = sizes.value,
             onDismiss = { showAddDialog.value = false },
             onSave = { name, size, category, quantity, buyPrice, sellPrice ->
                 viewModel.addItem(name, size, category, quantity, buyPrice, sellPrice)
@@ -106,6 +108,7 @@ fun ThriftInventoryScreen(
         EditItemDialog(
             item = selectedItem.value!!,
             categories = categories.value,
+            sizes = sizes.value,
             onDismiss = { showEditDialog.value = false },
             onSave = { updatedItem ->
                 viewModel.updateItem(updatedItem)
