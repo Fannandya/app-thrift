@@ -19,10 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.util.formatRupiah
 
 @Composable
 fun ThriftItemCard(
     item: ThriftItem,
+    categoryName: String,
+    sizeName: String,
     onItemClick: (ThriftItem) -> Unit,
     onDeleteClick: (ThriftItem) -> Unit
 ) {
@@ -46,12 +49,12 @@ fun ThriftItemCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Ukuran: ${item.size} · Kategori: ${item.category.ifBlank { "-" }} · Jumlah: ${item.quantity}",
+                text = "Ukuran: ${sizeName.ifBlank { "-" }} · Kategori: ${categoryName.ifBlank { "-" }} · Jumlah: ${item.quantity}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Rp${item.sellPrice}",
+                text = formatRupiah(item.sellPrice),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )

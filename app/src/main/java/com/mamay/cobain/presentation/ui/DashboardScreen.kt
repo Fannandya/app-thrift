@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
+import com.mamay.cobain.util.formatRupiah
 import kotlin.time.Duration.Companion.days
 
 enum class SalesRange(val label: String, val days: Long?) {
@@ -68,9 +69,9 @@ fun DashboardScreen(
     val availableItems = items.sumOf { it.quantity }
     val soldItems = filteredSales.sumOf { it.quantity }
     val totalItems = availableItems + soldItems
-    val totalRevenue = filteredSales.sumOf { it.totalPrice }
-    val totalInvestment = items.sumOf { it.quantity * it.buyPrice }
-    val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity * it.sellPrice }
+    val totalRevenue = filteredSales.sumOf { it.totalPrice.toLong() }
+    val totalInvestment = items.sumOf { it.quantity.toLong() * it.buyPrice }
+    val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity.toLong() * it.sellPrice }
     val recentSales = filteredSales.sortedByDescending { it.timestamp }.take(5)
 
     Column(
@@ -140,14 +141,14 @@ fun DashboardScreen(
             StatCard(
                 icon = Icons.Default.AttachMoney,
                 label = "Total Pendapatan",
-                value = "Rp$totalRevenue",
+                value = formatRupiah(totalRevenue),
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
             StatCard(
                 icon = Icons.Default.ShoppingCart,
                 label = "Total Asset",
-                value = "Rp$totalInvestment",
+                value = formatRupiah(totalInvestment),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -157,7 +158,7 @@ fun DashboardScreen(
         StatCard(
             icon = Icons.Default.Storefront,
             label = "Potensi Pendapatan (belum terjual)",
-            value = "Rp$potentialRevenue",
+            value = formatRupiah(potentialRevenue),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -206,7 +207,7 @@ fun DashboardScreen(
                             )
                         }
                         Text(
-                            text = "+Rp${sale.totalPrice}",
+                            text = "+${formatRupiah(sale.totalPrice)}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary

@@ -1,36 +1,32 @@
 package com.mamay.cobain.data.repository
 
-import com.mamay.cobain.data.dao.ThriftItemStorage
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
 
-class ThriftItemRepository(private val storage: ThriftItemStorage) {
-    val allItems: Flow<List<ThriftItem>> = storage.itemsFlow
+/**
+ * Interface boundary so ThriftViewModel can be unit-tested against a fake, without
+ * touching Room/SQLite (and therefore without needing an Android device/emulator).
+ * Every write returns Result so the caller can surface a real error to the user
+ * instead of it being swallowed.
+ */
+interface ThriftItemRepository {
+    val allItems: Flow<List<ThriftItem>>
+    val allCategories: Flow<List<ItemCategory>>
+    val allSizes: Flow<List<ItemSize>>
+    val allSales: Flow<List<ThriftSale>>
 
-    val allCategories: Flow<List<ItemCategory>> = storage.categoriesFlow
+    suspend fun insert(item: ThriftItem): Result<Unit>
+    suspend fun update(item: ThriftItem): Result<Unit>
+    suspend fun delete(item: ThriftItem): Result<Unit>
 
-    val allSizes: Flow<List<ItemSize>> = storage.sizesFlow
+    suspend fun insertCategory(name: String): Result<Unit>
+    suspend fun deleteCategory(category: ItemCategory): Result<Unit>
 
-    val allSales: Flow<List<ThriftSale>> = storage.salesFlow
+    suspend fun insertSize(name: String): Result<Unit>
+    suspend fun deleteSize(size: ItemSize): Result<Unit>
 
-    fun insert(item: ThriftItem) = storage.insert(item)
-
-    fun update(item: ThriftItem) = storage.update(item)
-
-    fun delete(item: ThriftItem) = storage.delete(item)
-
-    fun getItemById(id: Int): ThriftItem? = storage.getItemById(id)
-
-    fun insertCategory(name: String) = storage.insertCategory(name)
-
-    fun deleteCategory(category: ItemCategory) = storage.deleteCategory(category)
-
-    fun insertSize(name: String) = storage.insertSize(name)
-
-    fun deleteSize(size: ItemSize) = storage.deleteSize(size)
-
-    fun insertSale(sale: ThriftSale) = storage.insertSale(sale)
+    suspend fun recordSale(updatedItem: ThriftItem, sale: ThriftSale): Result<Unit>
 }

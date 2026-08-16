@@ -1,23 +1,29 @@
-package com.mamay.cobain.presentation.ui
+package com.mamay.cobain.presentation.ui.components
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import com.mamay.cobain.data.entity.ThriftItem
 
+/**
+ * Generic confirm/cancel dialog shared by every destructive action (delete item,
+ * delete category, delete size) so each screen doesn't hand-roll its own
+ * AlertDialog wiring, and so no destructive action is ever a single un-confirmed tap.
+ */
 @Composable
-fun DeleteConfirmDialog(
-    item: ThriftItem,
+fun ConfirmDialog(
+    title: String,
+    message: String,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    confirmLabel: String = "Hapus",
+    dismissLabel: String = "Batal"
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Hapus Item") },
-        text = { Text("Hapus \"${item.name}\"? Tindakan ini tidak bisa dibatalkan.") },
+        title = { Text(title) },
+        text = { Text(message) },
         confirmButton = {
             Button(
                 onClick = {
@@ -25,12 +31,12 @@ fun DeleteConfirmDialog(
                     onDismiss()
                 }
             ) {
-                Text("Hapus")
+                Text(confirmLabel)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text(dismissLabel)
             }
         }
     )

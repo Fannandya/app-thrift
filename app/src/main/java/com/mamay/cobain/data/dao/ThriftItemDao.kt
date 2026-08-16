@@ -1,195 +1,67 @@
 package com.mamay.cobain.data.dao
 
-import android.content.Context
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
-import java.io.File
 
-class ThriftItemStorage(private val context: Context) {
-    private val itemsFilename = "thrift_items.json"
-    private val itemsFile: File
-        get() = File(context.filesDir, itemsFilename)
+@Dao
+interface ThriftItemDao {
 
-    private val categoriesFilename = "thrift_categories.json"
-    private val categoriesFile: File
-        get() = File(context.filesDir, categoriesFilename)
+    @Query("SELECT * FROM items ORDER BY id DESC")
+    fun getAllItems(): Flow<List<ThriftItem>>
 
-    private val sizesFilename = "thrift_sizes.json"
-    private val sizesFile: File
-        get() = File(context.filesDir, sizesFilename)
+    @Query("SELECT * FROM items WHERE id = :id")
+    suspend fun getItemById(id: Int): ThriftItem?
 
-    private val salesFilename = "thrift_sales.json"
-    private val salesFile: File
-        get() = File(context.filesDir, salesFilename)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItem(item: ThriftItem): Long
 
-    private val _itemsFlow = MutableStateFlow<List<ThriftItem>>(emptyList())
-    val itemsFlow: Flow<List<ThriftItem>> = _itemsFlow.asStateFlow()
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateItem(item: ThriftItem)
 
-    private val _categoriesFlow = MutableStateFlow<List<ItemCategory>>(emptyList())
-    val categoriesFlow: Flow<List<ItemCategory>> = _categoriesFlow.asStateFlow()
+    @Delete
+    suspend fun deleteItem(item: ThriftItem)
 
-    private val _sizesFlow = MutableStateFlow<List<ItemSize>>(emptyList())
-    val sizesFlow: Flow<List<ItemSize>> = _sizesFlow.asStateFlow()
+    @Query("SELECT * FROM categories ORDER BY name ASC")
+    fun getAllCategories(): Flow<List<ItemCategory>>
 
-    private val _salesFlow = MutableStateFlow<List<ThriftSale>>(emptyList())
-    val salesFlow: Flow<List<ThriftSale>> = _salesFlow.asStateFlow()
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategory(category: ItemCategory): Long
 
-    init {
-        loadItems()
-        loadCategories()
-        loadSizes()
-        loadSales()
-    }
+    @Delete
+    suspend fun deleteCategory(category: ItemCategory)
 
-    private fun loadItems() {
-        val items = if (itemsFile.exists()) {
-            try {
-                val json = itemsFile.readText()
-                Json.decodeFromString(ListSerializer(ThriftItem.serializer()), json)
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-        _itemsFlow.value = items
-    }
+    @Query("SELECT * FROM sizes ORDER BY name ASC")
+    fun getAllSizes(): Flow<List<ItemSize>>
 
-    private fun saveItems(items: List<ThriftItem>) {
-        try {
-            val json = Json.encodeToString(ListSerializer(ThriftItem.serializer()), items)
-            itemsFile.writeText(json)
-            _itemsFlow.value = items
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSize(size: ItemSize): Long
 
-    private fun loadCategories() {
-        val categories = if (categoriesFile.exists()) {
-            try {
-                val json = categoriesFile.readText()
-                Json.decodeFromString(ListSerializer(ItemCategory.serializer()), json)
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-        _categoriesFlow.value = categories
-    }
+    @Delete
+    suspend fun deleteSize(size: ItemSize)
 
-    private fun saveCategories(categories: List<ItemCategory>) {
-        try {
-            val json = Json.encodeToString(ListSerializer(ItemCategory.serializer()), categories)
-            categoriesFile.writeText(json)
-            _categoriesFlow.value = categories
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+    @Query("SELECT * FROM sales ORDER BY timestamp DESC")
+    fun getAllSales(): Flow<List<ThriftSale>>
 
-    fun insert(item: ThriftItem) {
-        val newId = (_itemsFlow.value.maxOfOrNull { it.id } ?: 0) + 1
-        val itemWithId = item.copy(id = newId)
-        val updatedList = _itemsFlow.value + itemWithId
-        saveItems(updatedList)
-    }
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSale(sale: ThriftSale): Long
 
-    fun update(item: ThriftItem) {
-        val updatedList = _itemsFlow.value.map { if (it.id == item.id) item else it }
-        saveItems(updatedList)
-    }
-
-    fun delete(item: ThriftItem) {
-        val updatedList = _itemsFlow.value.filter { it.id != item.id }
-        saveItems(updatedList)
-    }
-
-    fun getItemById(id: Int): ThriftItem? {
-        return _itemsFlow.value.find { it.id == id }
-    }
-
-    fun insertCategory(name: String) {
-        val newId = (_categoriesFlow.value.maxOfOrNull { it.id } ?: 0) + 1
-        val category = ItemCategory(id = newId, name = name)
-        saveCategories(_categoriesFlow.value + category)
-    }
-
-    fun deleteCategory(category: ItemCategory) {
-        val updatedList = _categoriesFlow.value.filter { it.id != category.id }
-        saveCategories(updatedList)
-    }
-
-    private fun loadSizes() {
-        val sizes = if (sizesFile.exists()) {
-            try {
-                val json = sizesFile.readText()
-                Json.decodeFromString(ListSerializer(ItemSize.serializer()), json)
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-        _sizesFlow.value = sizes
-    }
-
-    private fun saveSizes(sizes: List<ItemSize>) {
-        try {
-            val json = Json.encodeToString(ListSerializer(ItemSize.serializer()), sizes)
-            sizesFile.writeText(json)
-            _sizesFlow.value = sizes
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    fun insertSize(name: String) {
-        val newId = (_sizesFlow.value.maxOfOrNull { it.id } ?: 0) + 1
-        val size = ItemSize(id = newId, name = name)
-        saveSizes(_sizesFlow.value + size)
-    }
-
-    fun deleteSize(size: ItemSize) {
-        val updatedList = _sizesFlow.value.filter { it.id != size.id }
-        saveSizes(updatedList)
-    }
-
-    private fun loadSales() {
-        val sales = if (salesFile.exists()) {
-            try {
-                val json = salesFile.readText()
-                Json.decodeFromString(ListSerializer(ThriftSale.serializer()), json)
-            } catch (e: Exception) {
-                emptyList()
-            }
-        } else {
-            emptyList()
-        }
-        _salesFlow.value = sales
-    }
-
-    private fun saveSales(sales: List<ThriftSale>) {
-        try {
-            val json = Json.encodeToString(ListSerializer(ThriftSale.serializer()), sales)
-            salesFile.writeText(json)
-            _salesFlow.value = sales
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    fun insertSale(sale: ThriftSale) {
-        val newId = (_salesFlow.value.maxOfOrNull { it.id } ?: 0) + 1
-        val saleWithId = sale.copy(id = newId)
-        saveSales(_salesFlow.value + saleWithId)
+    /**
+     * Reducing stock and recording the sale must land together: a crash or process
+     * death between the two writes would otherwise let a sale exist against stock
+     * that was never decremented (or vice versa).
+     */
+    @Transaction
+    suspend fun recordSale(updatedItem: ThriftItem, sale: ThriftSale) {
+        updateItem(updatedItem)
+        insertSale(sale)
     }
 }

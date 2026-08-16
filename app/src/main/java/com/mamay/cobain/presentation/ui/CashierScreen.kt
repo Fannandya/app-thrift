@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,6 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
+import com.mamay.cobain.util.formatRupiah
+
+private const val ALL_CATEGORIES_ID = -1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,22 +43,23 @@ fun CashierScreen(
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.items.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val sizes by viewModel.sizes.collectAsState()
     val availableItems = items.filter { it.quantity > 0 && !it.isSold }
+    val categoryNameById = remember(categories) { categories.associate { it.id to it.name } }
+    val sizeNameById = remember(sizes) { sizes.associate { it.id to it.name } }
 
-    val categories = remember(availableItems) {
-        buildList {
-            add("Semua")
-            addAll(availableItems.map { it.category }.filter { it.isNotBlank() }.distinct())
-        }
+    val availableCategories = remember(availableItems, categories) {
+        categories.filter { category -> availableItems.any { it.categoryId == category.id } }
     }
-    var selectedCategory by remember { mutableStateOf("Semua") }
-    val selectedItemForSale = remember { mutableStateOf<ThriftItem?>(null) }
-    val showSaleDialog = remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf(ALL_CATEGORIES_ID) }
+    var selectedItemForSale by remember { mutableStateOf<ThriftItem?>(null) }
+    var showSaleDialog by remember { mutableStateOf(false) }
 
-    val filteredItems = if (selectedCategory == "Semua") {
+    val filteredItems = if (selectedCategoryId == ALL_CATEGORIES_ID) {
         availableItems
     } else {
-        availableItems.filter { it.category == selectedCategory }
+        availableItems.filter { it.categoryId == selectedCategoryId }
     }
 
     Column(
@@ -75,11 +81,18 @@ fun CashierScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(categories, key = { it }) { category ->
+            item {
                 FilterChip(
-                    selected = selectedCategory == category,
-                    onClick = { selectedCategory = category },
-                    label = { Text(category) }
+                    selected = selectedCategoryId == ALL_CATEGORIES_ID,
+                    onClick = { selectedCategoryId = ALL_CATEGORIES_ID },
+                    label = { Text("Semua") }
+                )
+            }
+            items(availableCategories, key = { it.id }) { category ->
+                FilterChip(
+                    selected = selectedCategoryId == category.id,
+                    onClick = { selectedCategoryId = category.id },
+                    label = { Text(category.name) }
                 )
             }
         }
@@ -101,9 +114,11 @@ fun CashierScreen(
                 items(filteredItems, key = { it.id }) { item ->
                     CashierItemCard(
                         item = item,
+                        categoryName = categoryNameById[item.categoryId] ?: "",
+                        sizeName = sizeNameById[item.sizeId] ?: "",
                         onClick = {
-                            selectedItemForSale.value = item
-                            showSaleDialog.value = true
+                            selectedItemForSale = item
+                            showSaleDialog = true
                         }
                     )
                 }
@@ -111,14 +126,16 @@ fun CashierScreen(
         }
     }
 
-    if (showSaleDialog.value && selectedItemForSale.value != null) {
+    val itemForSale = selectedItemForSale
+    if (showSaleDialog && itemForSale != null) {
         SaleDialog(
-            item = selectedItemForSale.value!!,
-            onDismiss = { showSaleDialog.value = false },
+            item = itemForSale,
+            sizeName = sizeNameById[itemForSale.sizeId] ?: "",
+            onDismiss = { showSaleDialog = false },
             onConfirm = { quantity ->
-                viewModel.recordSale(selectedItemForSale.value!!, quantity)
-                showSaleDialog.value = false
-                selectedItemForSale.value = null
+                viewModel.recordSale(itemForSale, quantity)
+                showSaleDialog = false
+                selectedItemForSale = null
             }
         )
     }
@@ -127,6 +144,8 @@ fun CashierScreen(
 @Composable
 private fun CashierItemCard(
     item: ThriftItem,
+    categoryName: String,
+    sizeName: String,
     onClick: () -> Unit
 ) {
     Card(
@@ -149,7 +168,7 @@ private fun CashierItemCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Ukuran: ${item.size} · Kategori: ${item.category.ifBlank { "-" }}",
+                        text = "Ukuran: ${sizeName.ifBlank { "-" }} · Kategori: ${categoryName.ifBlank { "-" }}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -163,7 +182,7 @@ private fun CashierItemCard(
                     )
                 }
                 Text(
-                    text = "Rp${item.sellPrice}",
+                    text = formatRupiah(item.sellPrice),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -176,15 +195,16 @@ private fun CashierItemCard(
 @Composable
 private fun SaleDialog(
     item: ThriftItem,
+    sizeName: String,
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit
 ) {
     var quantity by remember { mutableStateOf("1") }
     val quantityInt = quantity.toIntOrNull() ?: 0
-    val validatedQuantity = quantityInt.coerceAtMost(item.quantity)
+    val validatedQuantity = quantityInt.coerceIn(0, item.quantity)
     val totalPrice = item.sellPrice * validatedQuantity
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Transaksi Penjualan") },
         text = {
@@ -194,12 +214,12 @@ private fun SaleDialog(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "Ukuran: ${item.size} · Stok: ${item.quantity}",
+                    text = "Ukuran: ${sizeName.ifBlank { "-" }} · Stok: ${item.quantity}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = quantity,
                     onValueChange = { value ->
                         val digits = value.filter { it.isDigit() }
@@ -221,7 +241,7 @@ private fun SaleDialog(
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = "Rp$totalPrice",
+                        text = formatRupiah(totalPrice),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -238,7 +258,7 @@ private fun SaleDialog(
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text("Batal")
             }
         }

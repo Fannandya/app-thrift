@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ItemCategory
+import com.mamay.cobain.presentation.ui.components.ConfirmDialog
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,7 @@ fun CategoryManagementScreen(
     modifier: Modifier = Modifier
 ) {
     val categories by viewModel.categories.collectAsState()
+    var categoryPendingDelete by remember { mutableStateOf<ItemCategory?>(null) }
 
     BackHandler(onBack = onBack)
 
@@ -105,12 +107,22 @@ fun CategoryManagementScreen(
                 items(categories, key = { it.id }) { category ->
                     CategoryRow(
                         category = category,
-                        onDelete = { viewModel.deleteCategory(category) }
+                        onDelete = { categoryPendingDelete = category }
                     )
                     Spacer(modifier = Modifier.padding(bottom = 8.dp))
                 }
             }
         }
+    }
+
+    val pendingCategory = categoryPendingDelete
+    if (pendingCategory != null) {
+        ConfirmDialog(
+            title = "Hapus Kategori",
+            message = "Hapus kategori \"${pendingCategory.name}\"? Barang yang memakai kategori ini akan menjadi tanpa kategori.",
+            onDismiss = { categoryPendingDelete = null },
+            onConfirm = { viewModel.deleteCategory(pendingCategory) }
+        )
     }
 }
 

@@ -18,11 +18,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.presentation.ui.components.ConfirmDialog
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,13 +34,16 @@ fun ThriftInventoryScreen(
     viewModel: ThriftViewModel,
     modifier: Modifier = Modifier
 ) {
-    val items = viewModel.items.collectAsState()
-    val categories = viewModel.categories.collectAsState()
-    val sizes = viewModel.sizes.collectAsState()
-    val showAddDialog = remember { mutableStateOf(false) }
-    val selectedItem = remember { mutableStateOf<ThriftItem?>(null) }
-    val showEditDialog = remember { mutableStateOf(false) }
-    val showDeleteDialog = remember { mutableStateOf(false) }
+    val items by viewModel.items.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val sizes by viewModel.sizes.collectAsState()
+    val categoryNameById = remember(categories) { categories.associate { it.id to it.name } }
+    val sizeNameById = remember(sizes) { sizes.associate { it.id to it.name } }
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    var selectedItem by remember { mutableStateOf<ThriftItem?>(null) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -52,7 +58,7 @@ fun ThriftInventoryScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddDialog.value = true },
+                onClick = { showAddDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Tambah barang")
@@ -65,7 +71,7 @@ fun ThriftInventoryScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            if (items.value.isEmpty()) {
+            if (items.isEmpty()) {
                 Text(
                     text = "Belum ada item. Tekan + untuk menambah barang.",
                     modifier = Modifier.padding(16.dp),
@@ -73,16 +79,18 @@ fun ThriftInventoryScreen(
                 )
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(items.value, key = { it.id }) { item ->
+                    items(items, key = { it.id }) { item ->
                         ThriftItemCard(
                             item = item,
+                            categoryName = categoryNameById[item.categoryId] ?: "",
+                            sizeName = sizeNameById[item.sizeId] ?: "",
                             onItemClick = {
-                                selectedItem.value = it
-                                showEditDialog.value = true
+                                selectedItem = it
+                                showEditDialog = true
                             },
                             onDeleteClick = {
-                                selectedItem.value = it
-                                showDeleteDialog.value = true
+                                selectedItem = it
+                                showDeleteDialog = true
                             }
                         )
                         Spacer(modifier = Modifier.padding(bottom = 8.dp))
@@ -92,40 +100,42 @@ fun ThriftInventoryScreen(
         }
     }
 
-    if (showAddDialog.value) {
+    if (showAddDialog) {
         AddItemDialog(
-            categories = categories.value,
-            sizes = sizes.value,
-            onDismiss = { showAddDialog.value = false },
-            onSave = { name, size, category, quantity, buyPrice, sellPrice ->
-                viewModel.addItem(name, size, category, quantity, buyPrice, sellPrice)
-                showAddDialog.value = false
+            categories = categories,
+            sizes = sizes,
+            onDismiss = { showAddDialog = false },
+            onSave = { name, sizeId, categoryId, quantity, buyPrice, sellPrice ->
+                viewModel.addItem(name, sizeId, categoryId, quantity, buyPrice, sellPrice)
+                showAddDialog = false
             }
         )
     }
 
-    if (showEditDialog.value && selectedItem.value != null) {
+    val itemForEdit = selectedItem
+    if (showEditDialog && itemForEdit != null) {
         EditItemDialog(
-            item = selectedItem.value!!,
-            categories = categories.value,
-            sizes = sizes.value,
-            onDismiss = { showEditDialog.value = false },
+            item = itemForEdit,
+            categories = categories,
+            sizes = sizes,
+            onDismiss = { showEditDialog = false },
             onSave = { updatedItem ->
                 viewModel.updateItem(updatedItem)
-                showEditDialog.value = false
-                selectedItem.value = null
+                showEditDialog = false
+                selectedItem = null
             }
         )
     }
 
-    if (showDeleteDialog.value && selectedItem.value != null) {
-        DeleteConfirmDialog(
-            item = selectedItem.value!!,
-            onDismiss = { showDeleteDialog.value = false },
+    val itemForDelete = selectedItem
+    if (showDeleteDialog && itemForDelete != null) {
+        ConfirmDialog(
+            title = "Hapus Item",
+            message = "Hapus \"${itemForDelete.name}\"? Tindakan ini tidak bisa dibatalkan.",
+            onDismiss = { showDeleteDialog = false },
             onConfirm = {
-                viewModel.deleteItem(selectedItem.value!!)
-                showDeleteDialog.value = false
-                selectedItem.value = null
+                viewModel.deleteItem(itemForDelete)
+                selectedItem = null
             }
         )
     }

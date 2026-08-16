@@ -6,12 +6,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -25,6 +21,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.presentation.ui.components.IdNameDropdown
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,14 +29,19 @@ fun AddItemDialog(
     categories: List<ItemCategory>,
     sizes: List<ItemSize>,
     onDismiss: () -> Unit,
-    onSave: (name: String, size: String, category: String, quantity: Int, buyPrice: Int, sellPrice: Int) -> Unit
+    onSave: (name: String, sizeId: Int?, categoryId: Int?, quantity: Int, buyPrice: Int, sellPrice: Int) -> Unit
 ) {
-    val name = remember { mutableStateOf("") }
-    val size = remember { mutableStateOf("") }
-    val selectedCategory = remember { mutableStateOf("") }
-    val quantity = remember { mutableStateOf("1") }
-    val buyPrice = remember { mutableStateOf("") }
-    val sellPrice = remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var sizeId by remember { mutableStateOf<Int?>(null) }
+    var categoryId by remember { mutableStateOf<Int?>(null) }
+    var quantity by remember { mutableStateOf("1") }
+    var buyPrice by remember { mutableStateOf("") }
+    var sellPrice by remember { mutableStateOf("") }
+
+    val quantityInt = quantity.toIntOrNull() ?: 0
+    val buyPriceInt = buyPrice.toIntOrNull() ?: 0
+    val sellPriceInt = sellPrice.toIntOrNull() ?: 0
+    val isValid = name.isNotBlank() && sizeId != null && quantityInt > 0
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -47,63 +49,75 @@ fun AddItemDialog(
         text = {
             Column(modifier = Modifier.padding(8.dp)) {
                 TextField(
-                    value = name.value,
-                    onValueChange = { name.value = it },
+                    value = name,
+                    onValueChange = { name = it },
                     label = { Text("Nama Pakaian") },
                     modifier = Modifier.padding(bottom = 8.dp),
                     singleLine = true
                 )
-                SizeDropdown(
-                    sizes = sizes,
-                    selectedSize = size.value,
-                    onSizeSelected = { size.value = it },
+                IdNameDropdown(
+                    label = "Ukuran",
+                    options = sizes,
+                    selectedId = sizeId,
+                    idOf = { it.id },
+                    nameOf = { it.name },
+                    emptyOptionsLabel = "Belum ada ukuran",
+                    onSelected = { sizeId = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp)
                 )
-                CategoryDropdown(
-                    categories = categories,
-                    selectedCategory = selectedCategory.value,
-                    onCategorySelected = { selectedCategory.value = it },
+                IdNameDropdown(
+                    label = "Kategori",
+                    options = categories,
+                    selectedId = categoryId,
+                    idOf = { it.id },
+                    nameOf = { it.name },
+                    emptyOptionsLabel = "Belum ada kategori",
+                    onSelected = { categoryId = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp)
                 )
                 TextField(
-                    value = quantity.value,
-                    onValueChange = { quantity.value = it.filter { char -> char.isDigit() } },
+                    value = quantity,
+                    onValueChange = { quantity = it.filter { char -> char.isDigit() } },
                     label = { Text("Jumlah") },
                     modifier = Modifier.padding(bottom = 8.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
                 TextField(
-                    value = buyPrice.value,
-                    onValueChange = { buyPrice.value = it },
+                    value = buyPrice,
+                    onValueChange = { buyPrice = it.filter { char -> char.isDigit() } },
                     label = { Text("Harga Beli") },
                     modifier = Modifier.padding(bottom = 8.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
                 TextField(
-                    value = sellPrice.value,
-                    onValueChange = { sellPrice.value = it },
+                    value = sellPrice,
+                    onValueChange = { sellPrice = it.filter { char -> char.isDigit() } },
                     label = { Text("Harga Jual") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
+                if (!isValid) {
+                    Text(
+                        text = "Nama, ukuran, dan jumlah (lebih dari 0) wajib diisi",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
+                enabled = isValid,
                 onClick = {
-                    val buyPriceInt = buyPrice.value.toIntOrNull() ?: 0
-                    val sellPriceInt = sellPrice.value.toIntOrNull() ?: 0
-                    val quantityInt = quantity.value.toIntOrNull() ?: 1
-                    if (name.value.isNotEmpty() && size.value.isNotEmpty()) {
-                        onSave(name.value, size.value, selectedCategory.value, quantityInt, buyPriceInt, sellPriceInt)
-                        onDismiss()
-                    }
+                    onSave(name, sizeId, categoryId, quantityInt, buyPriceInt, sellPriceInt)
+                    onDismiss()
                 }
             ) {
                 Text("Simpan")
@@ -115,104 +129,4 @@ fun AddItemDialog(
             }
         }
     )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SizeDropdown(
-    sizes: List<ItemSize>,
-    selectedSize: String,
-    onSizeSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier
-    ) {
-        TextField(
-            value = selectedSize,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Ukuran") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth(),
-            singleLine = true
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            if (sizes.isEmpty()) {
-                DropdownMenuItem(
-                    text = { Text("Belum ada ukuran") },
-                    onClick = { expanded = false }
-                )
-            } else {
-                sizes.forEach { size ->
-                    DropdownMenuItem(
-                        text = { Text(size.name) },
-                        onClick = {
-                            onSizeSelected(size.name)
-                            expanded = false
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CategoryDropdown(
-    categories: List<ItemCategory>,
-    selectedCategory: String,
-    onCategorySelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier
-    ) {
-        TextField(
-            value = selectedCategory,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Kategori") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth(),
-            singleLine = true
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            if (categories.isEmpty()) {
-                DropdownMenuItem(
-                    text = { Text("Belum ada kategori") },
-                    onClick = { expanded = false }
-                )
-            } else {
-                categories.forEach { category ->
-                    DropdownMenuItem(
-                        text = { Text(category.name) },
-                        onClick = {
-                            onCategorySelected(category.name)
-                            expanded = false
-                        }
-                    )
-                }
-            }
-        }
-    }
 }

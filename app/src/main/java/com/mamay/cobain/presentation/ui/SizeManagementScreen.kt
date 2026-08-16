@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.presentation.ui.components.ConfirmDialog
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,7 @@ fun SizeManagementScreen(
     modifier: Modifier = Modifier
 ) {
     val sizes by viewModel.sizes.collectAsState()
+    var sizePendingDelete by remember { mutableStateOf<ItemSize?>(null) }
 
     BackHandler(onBack = onBack)
 
@@ -105,12 +107,22 @@ fun SizeManagementScreen(
                 items(sizes, key = { it.id }) { size ->
                     SizeRow(
                         size = size,
-                        onDelete = { viewModel.deleteSize(size) }
+                        onDelete = { sizePendingDelete = size }
                     )
                     Spacer(modifier = Modifier.padding(bottom = 8.dp))
                 }
             }
         }
+    }
+
+    val pendingSize = sizePendingDelete
+    if (pendingSize != null) {
+        ConfirmDialog(
+            title = "Hapus Ukuran",
+            message = "Hapus ukuran \"${pendingSize.name}\"? Barang yang memakai ukuran ini akan menjadi tanpa ukuran.",
+            onDismiss = { sizePendingDelete = null },
+            onConfirm = { viewModel.deleteSize(pendingSize) }
+        )
     }
 }
 
