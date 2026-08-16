@@ -7,7 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.mamay.cobain.data.dao.ThriftItemStorage
 import com.mamay.cobain.data.repository.ThriftItemRepository
-import com.mamay.cobain.presentation.ui.ThriftInventoryScreen
+import com.mamay.cobain.presentation.ui.MainScreen
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModelFactory
 import com.mamay.cobain.ui.theme.CobainTheme
@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CobainTheme {
-                ThriftInventoryScreen(viewModel)
+                MainScreen(viewModel)
             }
         }
     }

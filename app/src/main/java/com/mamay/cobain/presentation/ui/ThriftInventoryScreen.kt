@@ -27,7 +27,10 @@ import androidx.compose.foundation.layout.Spacer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ThriftInventoryScreen(viewModel: ThriftViewModel) {
+fun ThriftInventoryScreen(
+    viewModel: ThriftViewModel,
+    modifier: Modifier = Modifier
+) {
     val items = viewModel.items.collectAsState()
     val showAddDialog = remember { mutableStateOf(false) }
     val selectedItem = remember { mutableStateOf<ThriftItem?>(null) }
@@ -35,6 +38,7 @@ fun ThriftInventoryScreen(viewModel: ThriftViewModel) {
     val showDeleteDialog = remember { mutableStateOf(false) }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text("Inventaris Pakaian Thrift") },
