@@ -1,6 +1,7 @@
 package com.mamay.cobain.presentation.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +22,7 @@ import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -33,6 +40,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
+import kotlin.time.Duration.Companion.days
+
+enum class SalesRange(val label: String, val days: Long?) {
+    ALL("Semua", null),
+    WEEK("7 Hari", 7),
+    MONTH("30 Hari", 30)
+}
 
 @Composable
 fun DashboardScreen(
@@ -42,13 +56,22 @@ fun DashboardScreen(
     val items by viewModel.items.collectAsState()
     val sales by viewModel.sales.collectAsState()
 
+    var selectedRange by remember { mutableStateOf(SalesRange.ALL) }
+
+    val cutoff = selectedRange.days?.let { System.currentTimeMillis() - it.days.inWholeMilliseconds }
+    val filteredSales = if (cutoff == null) {
+        sales
+    } else {
+        sales.filter { it.timestamp >= cutoff }
+    }
+
     val availableItems = items.sumOf { it.quantity }
-    val soldItems = sales.sumOf { it.quantity }
+    val soldItems = filteredSales.sumOf { it.quantity }
     val totalItems = availableItems + soldItems
-    val totalRevenue = sales.sumOf { it.totalPrice }
+    val totalRevenue = filteredSales.sumOf { it.totalPrice }
     val totalInvestment = items.sumOf { it.quantity * it.buyPrice }
     val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity * it.sellPrice }
-    val recentSales = sales.sortedByDescending { it.timestamp }.take(5)
+    val recentSales = filteredSales.sortedByDescending { it.timestamp }.take(5)
 
     Column(
         modifier = modifier
@@ -66,6 +89,18 @@ fun DashboardScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(SalesRange.entries) { range ->
+                FilterChip(
+                    selected = selectedRange == range,
+                    onClick = { selectedRange = range },
+                    label = { Text(range.label) }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
