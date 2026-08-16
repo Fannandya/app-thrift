@@ -28,5 +28,5 @@ interface ThriftItemRepository {
     suspend fun insertSize(name: String): Result<Unit>
     suspend fun deleteSize(size: ItemSize): Result<Unit>
 
-    suspend fun recordSale(updatedItem: ThriftItem, sale: ThriftSale): Result<Unit>
+    suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit>
 }

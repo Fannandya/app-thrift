@@ -56,10 +56,11 @@ class FakeThriftItemRepository : ThriftItemRepository {
         sizesFlow.value = sizesFlow.value.filter { it.id != size.id }
     }
 
-    override suspend fun recordSale(updatedItem: ThriftItem, sale: ThriftSale): Result<Unit> = mutate {
-        itemsFlow.value = itemsFlow.value.map { if (it.id == updatedItem.id) updatedItem else it }
-        val newId = (salesFlow.value.maxOfOrNull { it.id } ?: 0) + 1
-        salesFlow.value = salesFlow.value + sale.copy(id = newId)
+    override suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit> = mutate {
+        val updatedById = items.associateBy { it.id }
+        itemsFlow.value = itemsFlow.value.map { updatedById[it.id] ?: it }
+        var nextId = (salesFlow.value.maxOfOrNull { it.id } ?: 0)
+        salesFlow.value = salesFlow.value + sales.map { sale -> sale.copy(id = ++nextId) }
     }
 
     fun seedItem(item: ThriftItem) {

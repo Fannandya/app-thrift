@@ -66,33 +66,62 @@ class ThriftViewModelTest {
     }
 
     @Test
-    fun `recordSale reduces stock and marks item sold when stock reaches zero`() = runTest {
+    fun `addToCart clamps to available stock and reports an error past the limit`() = runTest {
         val item = ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = 1, quantity = 2, buyPrice = 20_000, sellPrice = 50_000)
         repository.seedItem(item)
         dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.recordSale(item, quantity = 2)
-        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.addToCart(item)
+        viewModel.addToCart(item)
+        viewModel.addToCart(item)
 
-        val updated = viewModel.items.value.first { it.id == 1 }
-        assertEquals(0, updated.quantity)
-        assertTrue(updated.isSold)
-        assertEquals(1, viewModel.sales.value.size)
-        assertEquals(100_000, viewModel.sales.value.first().totalPrice)
+        assertEquals(2, viewModel.cart.value.first().quantity)
+        assertNotNull(viewModel.errorMessage.value)
     }
 
     @Test
-    fun `recordSale coerces quantity to available stock instead of overselling`() = runTest {
-        val item = ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = 1, quantity = 2, buyPrice = 20_000, sellPrice = 50_000)
+    fun `updateCartQuantity of zero removes the line from the cart`() = runTest {
+        val item = ThriftItem(id = 1, name = "Rok", sizeId = 1, categoryId = null, quantity = 3, buyPrice = 5_000, sellPrice = 15_000)
         repository.seedItem(item)
         dispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.recordSale(item, quantity = 5)
+        viewModel.addToCart(item)
+        viewModel.updateCartQuantity(item, 0)
+
+        assertTrue(viewModel.cart.value.isEmpty())
+    }
+
+    @Test
+    fun `checkout with multiple cart lines reduces stock for every item and shares one transaction`() = runTest {
+        val jaket = ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = 1, quantity = 2, buyPrice = 20_000, sellPrice = 50_000)
+        val kaos = ThriftItem(id = 2, name = "Kaos", sizeId = 1, categoryId = 1, quantity = 5, buyPrice = 8_000, sellPrice = 20_000)
+        repository.seedItem(jaket)
+        repository.seedItem(kaos)
         dispatcher.scheduler.advanceUntilIdle()
 
-        val updated = viewModel.items.value.first { it.id == 1 }
-        assertEquals(0, updated.quantity)
-        assertEquals(2, viewModel.sales.value.first().quantity)
+        viewModel.addToCart(jaket)
+        viewModel.addToCart(jaket)
+        viewModel.addToCart(kaos)
+        viewModel.checkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, viewModel.items.value.first { it.id == 1 }.quantity)
+        assertTrue(viewModel.items.value.first { it.id == 1 }.isSold)
+        assertEquals(4, viewModel.items.value.first { it.id == 2 }.quantity)
+        assertEquals(2, viewModel.sales.value.size)
+        val transactionIds = viewModel.sales.value.map { it.transactionId }.distinct()
+        assertEquals(1, transactionIds.size)
+        assertEquals(120_000, viewModel.sales.value.sumOf { it.totalPrice })
+        assertTrue(viewModel.cart.value.isEmpty())
+    }
+
+    @Test
+    fun `checkout with an empty cart is rejected without touching the repository`() = runTest {
+        viewModel.checkout()
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.sales.value.isEmpty())
+        assertNotNull(viewModel.errorMessage.value)
     }
 
     @Test

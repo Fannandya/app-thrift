@@ -52,28 +52,54 @@ class ThriftItemDaoTest {
     }
 
     @Test
-    fun recordSaleUpdatesStockAndInsertsSaleTogether() = runBlocking {
+    fun recordSaleTransactionUpdatesAllStocksAndInsertsAllSalesTogether() = runBlocking {
         val sizeId = dao.insertSize(ItemSize(name = "L")).toInt()
-        val itemId = dao.insertItem(
+        val jaketId = dao.insertItem(
             ThriftItem(name = "Jaket", sizeId = sizeId, categoryId = null, quantity = 3, buyPrice = 20_000, sellPrice = 50_000)
         ).toInt()
-        val item = dao.getItemById(itemId)!!
+        val kaosId = dao.insertItem(
+            ThriftItem(name = "Kaos", sizeId = sizeId, categoryId = null, quantity = 5, buyPrice = 8_000, sellPrice = 20_000)
+        ).toInt()
+        val jaket = dao.getItemById(jaketId)!!
+        val kaos = dao.getItemById(kaosId)!!
+        val transactionId = "txn-1"
+        val timestamp = System.currentTimeMillis()
 
-        dao.recordSale(
-            updatedItem = item.copy(quantity = item.quantity - 1),
-            sale = ThriftSale(
-                itemId = itemId,
-                itemName = item.name,
-                size = "L",
-                category = "",
-                quantity = 1,
-                sellPrice = item.sellPrice,
-                totalPrice = item.sellPrice,
-                timestamp = System.currentTimeMillis()
+        dao.recordSaleTransaction(
+            items = listOf(
+                jaket.copy(quantity = jaket.quantity - 1),
+                kaos.copy(quantity = kaos.quantity - 2)
+            ),
+            sales = listOf(
+                ThriftSale(
+                    transactionId = transactionId,
+                    itemId = jaketId,
+                    itemName = jaket.name,
+                    size = "L",
+                    category = "",
+                    quantity = 1,
+                    sellPrice = jaket.sellPrice,
+                    totalPrice = jaket.sellPrice,
+                    timestamp = timestamp
+                ),
+                ThriftSale(
+                    transactionId = transactionId,
+                    itemId = kaosId,
+                    itemName = kaos.name,
+                    size = "L",
+                    category = "",
+                    quantity = 2,
+                    sellPrice = kaos.sellPrice,
+                    totalPrice = kaos.sellPrice * 2,
+                    timestamp = timestamp
+                )
             )
         )
 
-        assertEquals(2, dao.getItemById(itemId)?.quantity)
-        assertEquals(1, dao.getAllSales().first().size)
+        assertEquals(2, dao.getItemById(jaketId)?.quantity)
+        assertEquals(3, dao.getItemById(kaosId)?.quantity)
+        val sales = dao.getAllSales().first()
+        assertEquals(2, sales.size)
+        assertEquals(1, sales.map { it.transactionId }.distinct().size)
     }
 }

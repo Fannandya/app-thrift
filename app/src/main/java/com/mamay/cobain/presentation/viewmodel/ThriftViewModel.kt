@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * Eagerly (not WhileSubscribed/Lazily): every tab reads from these on every launch,
@@ -35,6 +36,9 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _cart = MutableStateFlow<List<CartLine>>(emptyList())
+    val cart: StateFlow<List<CartLine>> = _cart.asStateFlow()
 
     fun consumeErrorMessage() {
         _errorMessage.value = null
@@ -132,32 +136,88 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
         }
     }
 
-    fun recordSale(item: ThriftItem, quantity: Int) {
-        if (quantity <= 0) {
-            _errorMessage.value = "Jumlah yang terjual harus lebih dari 0"
+    /**
+     * One tap adds one unit, clamped to live stock, so the cashier can't add more of
+     * an item than is actually on the shelf.
+     */
+    fun addToCart(item: ThriftItem) {
+        val currentQuantity = _cart.value.find { it.item.id == item.id }?.quantity ?: 0
+        if (currentQuantity >= item.quantity) {
+            _errorMessage.value = "Stok \"${item.name}\" tidak cukup"
             return
         }
-        val soldQuantity = quantity.coerceAtMost(item.quantity)
-        val updatedItem = item.copy(
-            quantity = item.quantity - soldQuantity,
-            isSold = item.isSold || (item.quantity - soldQuantity) == 0
-        )
-        val categoryName = categories.value.find { it.id == item.categoryId }?.name ?: ""
-        val sizeName = sizes.value.find { it.id == item.sizeId }?.name ?: ""
+        setCartQuantity(item, currentQuantity + 1)
+    }
+
+    fun updateCartQuantity(item: ThriftItem, quantity: Int) {
+        setCartQuantity(item, quantity)
+    }
+
+    fun removeFromCart(item: ThriftItem) {
+        _cart.value = _cart.value.filter { it.item.id != item.id }
+    }
+
+    fun clearCart() {
+        _cart.value = emptyList()
+    }
+
+    private fun setCartQuantity(item: ThriftItem, quantity: Int) {
+        val clamped = quantity.coerceIn(0, item.quantity)
+        _cart.value = if (clamped <= 0) {
+            _cart.value.filter { it.item.id != item.id }
+        } else if (_cart.value.any { it.item.id == item.id }) {
+            _cart.value.map { if (it.item.id == item.id) it.copy(quantity = clamped) else it }
+        } else {
+            _cart.value + CartLine(item, clamped)
+        }
+    }
+
+    /**
+     * Re-reads live stock instead of trusting the quantities captured when items
+     * were added to the cart, in case stock changed (edited/deleted) in the
+     * meantime. Every line item of the checkout shares one transactionId/timestamp
+     * so the dashboard can show it as a single transaction.
+     */
+    fun checkout() {
+        val lines = _cart.value
+        if (lines.isEmpty()) {
+            _errorMessage.value = "Keranjang masih kosong"
+            return
+        }
+        val latestItemById = items.value.associateBy { it.id }
+        val transactionId = UUID.randomUUID().toString()
+        val timestamp = System.currentTimeMillis()
+        val updatedItems = mutableListOf<ThriftItem>()
+        val sales = mutableListOf<ThriftSale>()
+        for (line in lines) {
+            val latest = latestItemById[line.item.id] ?: continue
+            val soldQuantity = line.quantity.coerceIn(0, latest.quantity)
+            if (soldQuantity <= 0) continue
+            updatedItems += latest.copy(
+                quantity = latest.quantity - soldQuantity,
+                isSold = latest.isSold || (latest.quantity - soldQuantity) == 0
+            )
+            sales += ThriftSale(
+                transactionId = transactionId,
+                itemId = latest.id,
+                itemName = latest.name,
+                size = sizes.value.find { it.id == latest.sizeId }?.name ?: "",
+                category = categories.value.find { it.id == latest.categoryId }?.name ?: "",
+                quantity = soldQuantity,
+                sellPrice = latest.sellPrice,
+                totalPrice = latest.sellPrice * soldQuantity,
+                timestamp = timestamp
+            )
+        }
+        if (sales.isEmpty()) {
+            _errorMessage.value = "Barang di keranjang sudah tidak tersedia"
+            _cart.value = emptyList()
+            return
+        }
         viewModelScope.launch {
-            repository.recordSale(
-                updatedItem = updatedItem,
-                sale = ThriftSale(
-                    itemId = item.id,
-                    itemName = item.name,
-                    size = sizeName,
-                    category = categoryName,
-                    quantity = soldQuantity,
-                    sellPrice = item.sellPrice,
-                    totalPrice = item.sellPrice * soldQuantity,
-                    timestamp = System.currentTimeMillis()
-                )
-            ).onFailure(::reportFailure)
+            repository.recordSaleTransaction(updatedItems, sales)
+                .onSuccess { _cart.value = emptyList() }
+                .onFailure(::reportFailure)
         }
     }
 
@@ -180,3 +240,5 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
         _errorMessage.value = "Gagal menyimpan data: ${e.message ?: "terjadi kesalahan tak terduga"}"
     }
 }
+
+data class CartLine(val item: ThriftItem, val quantity: Int)

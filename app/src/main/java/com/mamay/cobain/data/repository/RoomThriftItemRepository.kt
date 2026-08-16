@@ -48,8 +48,8 @@ class RoomThriftItemRepository(
         dao.deleteSize(size)
     }
 
-    override suspend fun recordSale(updatedItem: ThriftItem, sale: ThriftSale): Result<Unit> = safeCall {
-        dao.recordSale(updatedItem, sale)
+    override suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit> = safeCall {
+        dao.recordSaleTransaction(items, sales)
     }
 
     private suspend fun safeCall(block: suspend () -> Unit): Result<Unit> =

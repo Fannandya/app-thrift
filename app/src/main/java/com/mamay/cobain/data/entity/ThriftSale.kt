@@ -26,6 +26,7 @@ import androidx.room.PrimaryKey
 data class ThriftSale(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
+    val transactionId: String,
     val itemId: Int?,
     val itemName: String,
     val size: String,

@@ -72,6 +72,7 @@ class LegacyDataMigrator(
                     dao.insertSale(
                         ThriftSale(
                             id = legacy.id,
+                            transactionId = "legacy-${legacy.id}",
                             itemId = newItemIdByOldId[legacy.itemId],
                             itemName = legacy.itemName,
                             size = legacy.size,

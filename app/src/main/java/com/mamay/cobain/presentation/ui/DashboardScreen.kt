@@ -72,7 +72,19 @@ fun DashboardScreen(
     val totalRevenue = filteredSales.sumOf { it.totalPrice.toLong() }
     val totalInvestment = items.sumOf { it.quantity.toLong() * it.buyPrice }
     val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity.toLong() * it.sellPrice }
-    val recentSales = filteredSales.sortedByDescending { it.timestamp }.take(5)
+    val recentTransactions = filteredSales
+        .groupBy { it.transactionId }
+        .map { (transactionId, lines) ->
+            RecentTransaction(
+                transactionId = transactionId,
+                timestamp = lines.maxOf { it.timestamp },
+                itemCount = lines.sumOf { it.quantity },
+                totalPrice = lines.sumOf { it.totalPrice.toLong() },
+                summary = if (lines.size == 1) lines.first().itemName else "${lines.size} jenis barang"
+            )
+        }
+        .sortedByDescending { it.timestamp }
+        .take(5)
 
     Column(
         modifier = modifier
@@ -171,7 +183,7 @@ fun DashboardScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        if (recentSales.isEmpty()) {
+        if (recentTransactions.isEmpty()) {
             Text(
                 text = "Belum ada transaksi. Layani penjualan dari menu Kasir.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -184,7 +196,7 @@ fun DashboardScreen(
                     .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                     .padding(horizontal = 16.dp)
             ) {
-                recentSales.forEachIndexed { index, sale ->
+                recentTransactions.forEachIndexed { index, transaction ->
                     if (index > 0) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
@@ -196,18 +208,18 @@ fun DashboardScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = sale.itemName,
+                                text = transaction.summary,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Ukuran ${sale.size} · Jumlah ${sale.quantity}",
+                                text = "Jumlah ${transaction.itemCount} barang",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
-                            text = "+${formatRupiah(sale.totalPrice)}",
+                            text = "+${formatRupiah(transaction.totalPrice)}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
@@ -218,6 +230,15 @@ fun DashboardScreen(
         }
     }
 }
+
+/** One row of "Transaksi Terbaru": all ThriftSale line items sharing a transactionId, collapsed into one entry. */
+private data class RecentTransaction(
+    val transactionId: String,
+    val timestamp: Long,
+    val itemCount: Int,
+    val totalPrice: Long,
+    val summary: String
+)
 
 @Composable
 private fun StatCard(

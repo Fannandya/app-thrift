@@ -55,13 +55,15 @@ interface ThriftItemDao {
     suspend fun insertSale(sale: ThriftSale): Long
 
     /**
-     * Reducing stock and recording the sale must land together: a crash or process
-     * death between the two writes would otherwise let a sale exist against stock
-     * that was never decremented (or vice versa).
+     * Reducing stock and recording the sale lines must land together: a crash or
+     * process death partway through would otherwise let some sale rows exist
+     * against stock that was never decremented (or vice versa). One checkout can
+     * cover several distinct items, so both lists are updated/inserted in one
+     * transaction rather than one item/sale pair at a time.
      */
     @Transaction
-    suspend fun recordSale(updatedItem: ThriftItem, sale: ThriftSale) {
-        updateItem(updatedItem)
-        insertSale(sale)
+    suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>) {
+        items.forEach { updateItem(it) }
+        sales.forEach { insertSale(it) }
     }
 }
