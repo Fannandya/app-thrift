@@ -41,12 +41,12 @@ fun DashboardScreen(
 ) {
     val items by viewModel.items.collectAsState()
 
-    val totalItems = items.size
-    val soldItems = items.count { it.isSold }
+    val totalItems = items.sumOf { it.quantity }
+    val soldItems = items.filter { it.isSold }.sumOf { it.quantity }
     val availableItems = totalItems - soldItems
-    val totalRevenue = items.filter { it.isSold }.sumOf { it.sellPrice }
-    val totalInvestment = items.sumOf { it.buyPrice }
-    val potentialRevenue = items.filter { !it.isSold }.sumOf { it.sellPrice }
+    val totalRevenue = items.filter { it.isSold }.sumOf { it.quantity * it.sellPrice }
+    val totalInvestment = items.sumOf { it.quantity * it.buyPrice }
+    val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity * it.sellPrice }
     val recentItems = items.takeLast(5).reversed()
 
     Column(
@@ -164,7 +164,7 @@ fun DashboardScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Ukuran ${item.size}",
+                                text = "Ukuran ${item.size} · Jumlah ${item.quantity}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

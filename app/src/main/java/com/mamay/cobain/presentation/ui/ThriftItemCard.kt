@@ -46,7 +46,7 @@ fun ThriftItemCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Ukuran: ${item.size}",
+                text = "Ukuran: ${item.size} · Kategori: ${item.category.ifBlank { "-" }} · Jumlah: ${item.quantity}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

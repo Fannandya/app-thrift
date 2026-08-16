@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,7 +20,8 @@ import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
 enum class MainTab(val title: String) {
     Dashboard("Dashboard"),
-    Inventaris("Inventaris")
+    Inventaris("Inventaris"),
+    Pengaturan("Pengaturan")
 }
 
 @Composable
@@ -41,6 +43,12 @@ fun MainScreen(viewModel: ThriftViewModel) {
                     icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
                     label = { Text(MainTab.Inventaris.title) }
                 )
+                NavigationBarItem(
+                    selected = selectedTab == MainTab.Pengaturan,
+                    onClick = { selectedTab = MainTab.Pengaturan },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text(MainTab.Pengaturan.title) }
+                )
             }
         }
     ) { innerPadding ->
@@ -50,6 +58,10 @@ fun MainScreen(viewModel: ThriftViewModel) {
                 modifier = Modifier.padding(innerPadding)
             )
             MainTab.Inventaris -> ThriftInventoryScreen(
+                viewModel = viewModel,
+                modifier = Modifier.padding(innerPadding)
+            )
+            MainTab.Pengaturan -> SettingsScreen(
                 viewModel = viewModel,
                 modifier = Modifier.padding(innerPadding)
             )

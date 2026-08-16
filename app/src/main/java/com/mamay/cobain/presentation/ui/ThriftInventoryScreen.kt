@@ -1,16 +1,17 @@
 package com.mamay.cobain.presentation.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -23,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
-import androidx.compose.foundation.layout.Spacer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +32,7 @@ fun ThriftInventoryScreen(
     modifier: Modifier = Modifier
 ) {
     val items = viewModel.items.collectAsState()
+    val categories = viewModel.categories.collectAsState()
     val showAddDialog = remember { mutableStateOf(false) }
     val selectedItem = remember { mutableStateOf<ThriftItem?>(null) }
     val showEditDialog = remember { mutableStateOf(false) }
@@ -92,9 +93,10 @@ fun ThriftInventoryScreen(
 
     if (showAddDialog.value) {
         AddItemDialog(
+            categories = categories.value,
             onDismiss = { showAddDialog.value = false },
-            onSave = { name, size, buyPrice, sellPrice ->
-                viewModel.addItem(name, size, buyPrice, sellPrice)
+            onSave = { name, size, category, quantity, buyPrice, sellPrice ->
+                viewModel.addItem(name, size, category, quantity, buyPrice, sellPrice)
                 showAddDialog.value = false
             }
         )
@@ -103,6 +105,7 @@ fun ThriftInventoryScreen(
     if (showEditDialog.value && selectedItem.value != null) {
         EditItemDialog(
             item = selectedItem.value!!,
+            categories = categories.value,
             onDismiss = { showEditDialog.value = false },
             onSave = { updatedItem ->
                 viewModel.updateItem(updatedItem)
