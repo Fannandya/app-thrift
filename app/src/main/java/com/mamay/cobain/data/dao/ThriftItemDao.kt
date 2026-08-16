@@ -2,6 +2,7 @@ package com.mamay.cobain.data.dao
 
 import android.content.Context
 import com.mamay.cobain.data.entity.ItemCategory
+import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,10 @@ class ThriftItemStorage(private val context: Context) {
     private val categoriesFile: File
         get() = File(context.filesDir, categoriesFilename)
 
+    private val sizesFilename = "thrift_sizes.json"
+    private val sizesFile: File
+        get() = File(context.filesDir, sizesFilename)
+
     private val salesFilename = "thrift_sales.json"
     private val salesFile: File
         get() = File(context.filesDir, salesFilename)
@@ -30,12 +35,16 @@ class ThriftItemStorage(private val context: Context) {
     private val _categoriesFlow = MutableStateFlow<List<ItemCategory>>(emptyList())
     val categoriesFlow: Flow<List<ItemCategory>> = _categoriesFlow.asStateFlow()
 
+    private val _sizesFlow = MutableStateFlow<List<ItemSize>>(emptyList())
+    val sizesFlow: Flow<List<ItemSize>> = _sizesFlow.asStateFlow()
+
     private val _salesFlow = MutableStateFlow<List<ThriftSale>>(emptyList())
     val salesFlow: Flow<List<ThriftSale>> = _salesFlow.asStateFlow()
 
     init {
         loadItems()
         loadCategories()
+        loadSizes()
         loadSales()
     }
 
@@ -117,6 +126,41 @@ class ThriftItemStorage(private val context: Context) {
     fun deleteCategory(category: ItemCategory) {
         val updatedList = _categoriesFlow.value.filter { it.id != category.id }
         saveCategories(updatedList)
+    }
+
+    private fun loadSizes() {
+        val sizes = if (sizesFile.exists()) {
+            try {
+                val json = sizesFile.readText()
+                Json.decodeFromString(ListSerializer(ItemSize.serializer()), json)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+        _sizesFlow.value = sizes
+    }
+
+    private fun saveSizes(sizes: List<ItemSize>) {
+        try {
+            val json = Json.encodeToString(ListSerializer(ItemSize.serializer()), sizes)
+            sizesFile.writeText(json)
+            _sizesFlow.value = sizes
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun insertSize(name: String) {
+        val newId = (_sizesFlow.value.maxOfOrNull { it.id } ?: 0) + 1
+        val size = ItemSize(id = newId, name = name)
+        saveSizes(_sizesFlow.value + size)
+    }
+
+    fun deleteSize(size: ItemSize) {
+        val updatedList = _sizesFlow.value.filter { it.id != size.id }
+        saveSizes(updatedList)
     }
 
     private fun loadSales() {

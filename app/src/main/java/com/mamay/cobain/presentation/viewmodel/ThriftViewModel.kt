@@ -3,6 +3,7 @@ package com.mamay.cobain.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mamay.cobain.data.entity.ItemCategory
+import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import com.mamay.cobain.data.repository.ThriftItemRepository
@@ -15,6 +16,9 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val categories: StateFlow<List<ItemCategory>> = repository.allCategories
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val sizes: StateFlow<List<ItemSize>> = repository.allSizes
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val sales: StateFlow<List<ThriftSale>> = repository.allSales
@@ -59,6 +63,14 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
 
     fun deleteCategory(category: ItemCategory) {
         repository.deleteCategory(category)
+    }
+
+    fun addSize(name: String) {
+        repository.insertSize(name)
+    }
+
+    fun deleteSize(size: ItemSize) {
+        repository.deleteSize(size)
     }
 
     fun recordSale(item: ThriftItem, quantity: Int) {
