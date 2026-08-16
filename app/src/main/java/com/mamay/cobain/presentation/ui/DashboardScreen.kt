@@ -111,7 +111,7 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.width(8.dp))
             StatCard(
                 icon = Icons.Default.ShoppingCart,
-                label = "Total Modal",
+                label = "Total Asset",
                 value = "Rp$totalInvestment",
                 modifier = Modifier.weight(1f)
             )
