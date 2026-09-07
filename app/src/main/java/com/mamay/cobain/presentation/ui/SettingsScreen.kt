@@ -19,12 +19,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.activity.compose.BackHandler
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
 private enum class SettingsSection { NONE, CATEGORIES, SIZES }
@@ -34,24 +34,26 @@ fun SettingsScreen(
     viewModel: ThriftViewModel,
     modifier: Modifier = Modifier
 ) {
-    var section by remember { mutableStateOf(SettingsSection.NONE) }
+    // Nama enum, bukan enum-nya: rememberSaveable butuh tipe yang bisa masuk Bundle.
+    var sectionName by rememberSaveable { mutableStateOf(SettingsSection.NONE.name) }
+    val section = SettingsSection.valueOf(sectionName)
 
     when (section) {
         SettingsSection.CATEGORIES -> CategoryManagementScreen(
             viewModel = viewModel,
-            onBack = { section = SettingsSection.NONE },
+            onBack = { sectionName = SettingsSection.NONE.name },
             modifier = modifier
         )
 
         SettingsSection.SIZES -> SizeManagementScreen(
             viewModel = viewModel,
-            onBack = { section = SettingsSection.NONE },
+            onBack = { sectionName = SettingsSection.NONE.name },
             modifier = modifier
         )
 
         SettingsSection.NONE -> SettingsMenuScreen(
-            onCategoriesClick = { section = SettingsSection.CATEGORIES },
-            onSizesClick = { section = SettingsSection.SIZES },
+            onCategoriesClick = { sectionName = SettingsSection.CATEGORIES.name },
+            onSizesClick = { sectionName = SettingsSection.SIZES.name },
             modifier = modifier
         )
     }

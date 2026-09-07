@@ -75,8 +75,12 @@ fun ThriftInventoryScreen(
     val availableCategories = remember(items, categories) {
         categories.filter { category -> items.any { it.categoryId == category.id } }
     }
-    var selectedCategoryId by remember { mutableStateOf(ALL_CATEGORIES_ID) }
-    var selectedStatusFilter by remember { mutableStateOf(StatusFilter.ALL) }
+    // rememberSaveable, seperti selectedItemId: filter yang dipilih kasir hilang saat
+    // rotasi kalau hanya remember. Enum tidak otomatis Saveable, jadi yang disimpan
+    // adalah nama konstantanya.
+    var selectedCategoryId by rememberSaveable { mutableStateOf(ALL_CATEGORIES_ID) }
+    var selectedStatusFilterName by rememberSaveable { mutableStateOf(StatusFilter.ALL.name) }
+    val selectedStatusFilter = StatusFilter.valueOf(selectedStatusFilterName)
     var showAddDialog by remember { mutableStateOf(false) }
 
     val filteredItems = items
@@ -138,7 +142,7 @@ fun ThriftInventoryScreen(
                 items(StatusFilter.entries.toList()) { status ->
                     FilterChip(
                         selected = selectedStatusFilter == status,
-                        onClick = { selectedStatusFilter = status },
+                        onClick = { selectedStatusFilterName = status.name },
                         label = { Text(status.label) }
                     )
                 }

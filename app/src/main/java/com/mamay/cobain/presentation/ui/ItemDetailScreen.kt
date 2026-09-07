@@ -1,5 +1,6 @@
 package com.mamay.cobain.presentation.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,8 @@ fun ItemDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onBack)
+
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -122,6 +125,14 @@ fun ItemDetailScreen(
             ) {
                 Text(if (item.isSold) "Tandai Tersedia" else "Tandai Terjual")
             }
+
+            Text(
+                text = "Status ini hanya menyembunyikan barang dari Kasir. " +
+                    "Perubahannya tidak dicatat sebagai penjualan dan tidak mengubah jumlah stok.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

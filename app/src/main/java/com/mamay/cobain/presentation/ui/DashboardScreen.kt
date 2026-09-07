@@ -66,12 +66,16 @@ fun DashboardScreen(
         sales.filter { it.timestamp >= cutoff }
     }
 
-    val availableItems = items.sumOf { it.quantity }
+    // Barang yang ditandai terjual disembunyikan dari Kasir, jadi stoknya tidak boleh
+    // ikut dihitung sebagai "Tersedia" atau sebagai aset di sini - sebelumnya dashboard
+    // dan Kasir melaporkan angka stok yang berbeda untuk barang yang sama.
+    val unsoldItems = items.filter { !it.isSold }
+    val availableItems = unsoldItems.sumOf { it.quantity }
     val soldItems = filteredSales.sumOf { it.quantity }
     val totalItems = availableItems + soldItems
     val totalRevenue = filteredSales.sumOf { it.totalPrice.toLong() }
-    val totalInvestment = items.sumOf { it.quantity.toLong() * it.buyPrice }
-    val potentialRevenue = items.filter { !it.isSold }.sumOf { it.quantity.toLong() * it.sellPrice }
+    val totalInvestment = unsoldItems.sumOf { it.quantity.toLong() * it.buyPrice }
+    val potentialRevenue = unsoldItems.sumOf { it.quantity.toLong() * it.sellPrice }
     val recentTransactions = filteredSales
         .groupBy { it.transactionId }
         .map { (transactionId, lines) ->
