@@ -2,6 +2,7 @@ package com.mamay.cobain.data.repository
 
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +18,7 @@ interface ThriftItemRepository {
     val allCategories: Flow<List<ItemCategory>>
     val allSizes: Flow<List<ItemSize>>
     val allSales: Flow<List<ThriftSale>>
+    val storeProfile: Flow<StoreProfile>
 
     suspend fun insert(item: ThriftItem): Result<Unit>
     suspend fun update(item: ThriftItem): Result<Unit>
@@ -27,6 +29,8 @@ interface ThriftItemRepository {
 
     suspend fun insertSize(name: String): Result<Unit>
     suspend fun deleteSize(size: ItemSize): Result<Unit>
+
+    suspend fun saveStoreProfile(profile: StoreProfile): Result<Unit>
 
     suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit>
 }

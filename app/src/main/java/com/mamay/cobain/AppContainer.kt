@@ -25,10 +25,13 @@ class AppContainer(context: Context) {
         appContext,
         AppDatabase::class.java,
         AppDatabase.DATABASE_NAME
-    ).addMigrations(AppDatabase.MIGRATION_1_2).build()
+    ).addMigrations(
+        AppDatabase.MIGRATION_1_2,
+        AppDatabase.MIGRATION_2_3
+    ).build()
 
     val thriftItemRepository: ThriftItemRepository by lazy {
-        RoomThriftItemRepository(database.thriftItemDao())
+        RoomThriftItemRepository(database.thriftItemDao(), database.storeProfileDao())
     }
 
     val legacyDataMigrator: LegacyDataMigrator by lazy {

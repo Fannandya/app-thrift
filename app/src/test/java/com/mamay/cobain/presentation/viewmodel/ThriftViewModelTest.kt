@@ -158,4 +158,26 @@ class ThriftViewModelTest {
         assertTrue(viewModel.items.value.isEmpty())
         assertFalse(viewModel.errorMessage.value.isNullOrBlank())
     }
+
+    @Test
+    fun `saveStoreProfile with blank name is rejected`() = runTest {
+        viewModel.saveStoreProfile("  ", "Jl. Merdeka", "0812", "Terima kasih")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("", viewModel.storeProfile.value.storeName)
+        assertNotNull(viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `saveStoreProfile trims and persists the profile`() = runTest {
+        viewModel.saveStoreProfile("  Toko Berkah  ", " Jl. Merdeka 12 ", " 0812 ", " Terima kasih ")
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val profile = viewModel.storeProfile.value
+        assertEquals("Toko Berkah", profile.storeName)
+        assertEquals("Jl. Merdeka 12", profile.address)
+        assertEquals("0812", profile.phone)
+        assertEquals("Terima kasih", profile.receiptFooter)
+        assertNull(viewModel.errorMessage.value)
+    }
 }

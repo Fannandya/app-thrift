@@ -2,6 +2,7 @@ package com.mamay.cobain.data.repository
 
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
@@ -16,6 +17,7 @@ class FakeThriftItemRepository : ThriftItemRepository {
     private val categoriesFlow = MutableStateFlow<List<ItemCategory>>(emptyList())
     private val sizesFlow = MutableStateFlow<List<ItemSize>>(emptyList())
     private val salesFlow = MutableStateFlow<List<ThriftSale>>(emptyList())
+    private val storeProfileFlow = MutableStateFlow(StoreProfile())
 
     /** Set true to make the next mutating call return Result.failure. */
     var failNextCall = false
@@ -24,6 +26,7 @@ class FakeThriftItemRepository : ThriftItemRepository {
     override val allCategories: Flow<List<ItemCategory>> = categoriesFlow
     override val allSizes: Flow<List<ItemSize>> = sizesFlow
     override val allSales: Flow<List<ThriftSale>> = salesFlow
+    override val storeProfile: Flow<StoreProfile> = storeProfileFlow
 
     override suspend fun insert(item: ThriftItem): Result<Unit> = mutate {
         val newId = (itemsFlow.value.maxOfOrNull { it.id } ?: 0) + 1
@@ -54,6 +57,10 @@ class FakeThriftItemRepository : ThriftItemRepository {
 
     override suspend fun deleteSize(size: ItemSize): Result<Unit> = mutate {
         sizesFlow.value = sizesFlow.value.filter { it.id != size.id }
+    }
+
+    override suspend fun saveStoreProfile(profile: StoreProfile): Result<Unit> = mutate {
+        storeProfileFlow.value = profile
     }
 
     override suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit> = mutate {

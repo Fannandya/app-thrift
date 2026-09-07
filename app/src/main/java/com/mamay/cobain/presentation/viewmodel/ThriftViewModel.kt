@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import com.mamay.cobain.data.repository.ThriftItemRepository
@@ -33,6 +34,9 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
 
     val sales: StateFlow<List<ThriftSale>> = repository.allSales
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val storeProfile: StateFlow<StoreProfile> = repository.storeProfile
+        .stateIn(viewModelScope, SharingStarted.Eagerly, StoreProfile())
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -127,6 +131,23 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
         }
         viewModelScope.launch {
             repository.insertSize(name.trim()).onFailure(::reportFailure)
+        }
+    }
+
+    fun saveStoreProfile(storeName: String, address: String, phone: String, receiptFooter: String) {
+        if (storeName.isBlank()) {
+            _errorMessage.value = "Nama toko tidak boleh kosong"
+            return
+        }
+        viewModelScope.launch {
+            repository.saveStoreProfile(
+                StoreProfile(
+                    storeName = storeName.trim(),
+                    address = address.trim(),
+                    phone = phone.trim(),
+                    receiptFooter = receiptFooter.trim()
+                )
+            ).onFailure(::reportFailure)
         }
     }
 
