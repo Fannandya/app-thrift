@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -27,6 +28,7 @@ import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 enum class MainTab(val title: String) {
     Dashboard("Dashboard"),
     Kasir("Kasir"),
+    Riwayat("Riwayat"),
     Inventaris("Inventaris"),
     Pengaturan("Pengaturan")
 }
@@ -62,6 +64,12 @@ fun MainScreen(viewModel: ThriftViewModel) {
                     label = { Text(MainTab.Kasir.title) }
                 )
                 NavigationBarItem(
+                    selected = selectedTab == MainTab.Riwayat,
+                    onClick = { selectedTab = MainTab.Riwayat },
+                    icon = { Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null) },
+                    label = { Text(MainTab.Riwayat.title) }
+                )
+                NavigationBarItem(
                     selected = selectedTab == MainTab.Inventaris,
                     onClick = { selectedTab = MainTab.Inventaris },
                     icon = { Icon(Icons.Default.Inventory2, contentDescription = null) },
@@ -82,6 +90,10 @@ fun MainScreen(viewModel: ThriftViewModel) {
                 modifier = Modifier.padding(innerPadding)
             )
             MainTab.Kasir -> CashierScreen(
+                viewModel = viewModel,
+                modifier = Modifier.padding(innerPadding)
+            )
+            MainTab.Riwayat -> TransactionHistoryScreen(
                 viewModel = viewModel,
                 modifier = Modifier.padding(innerPadding)
             )
