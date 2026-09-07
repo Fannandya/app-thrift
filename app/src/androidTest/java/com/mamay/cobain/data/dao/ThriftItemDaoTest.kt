@@ -102,4 +102,31 @@ class ThriftItemDaoTest {
         assertEquals(2, sales.size)
         assertEquals(1, sales.map { it.transactionId }.distinct().size)
     }
+
+    @Test
+    fun updatingAnItemKeepsTheItemIdLinkOnItsExistingSales() = runBlocking {
+        val sizeId = dao.insertSize(ItemSize(name = "M")).toInt()
+        val itemId = dao.insertItem(
+            ThriftItem(name = "Hoodie", sizeId = sizeId, categoryId = null, quantity = 5, buyPrice = 30_000, sellPrice = 90_000)
+        ).toInt()
+        dao.insertSale(
+            ThriftSale(
+                transactionId = "txn-lama",
+                itemId = itemId,
+                itemName = "Hoodie",
+                size = "M",
+                category = "",
+                quantity = 1,
+                sellPrice = 90_000,
+                totalPrice = 90_000,
+                timestamp = 1_000L
+            )
+        )
+
+        val item = dao.getItemById(itemId)!!
+        dao.updateItem(item.copy(quantity = 4))
+
+        val sales = dao.getAllSales().first()
+        assertEquals(itemId, sales.single().itemId)
+    }
 }

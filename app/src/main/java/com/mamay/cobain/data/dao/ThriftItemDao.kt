@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
@@ -24,7 +25,14 @@ interface ThriftItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItem(item: ThriftItem): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * @Update, not @Insert(REPLACE): Room enables foreign key constraints, and in
+     * SQLite an INSERT OR REPLACE deletes the conflicting row before re-inserting,
+     * which fires ON DELETE SET NULL on sales.itemId. Using REPLACE here silently
+     * wiped the item link from every past sale each time stock changed at checkout.
+     * insertItem keeps REPLACE on purpose - LegacyDataMigrator upserts with explicit ids.
+     */
+    @Update
     suspend fun updateItem(item: ThriftItem)
 
     @Delete
