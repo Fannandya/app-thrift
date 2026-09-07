@@ -76,6 +76,11 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    // Keduanya dibutuhkan saat runtime: compose-m3 hanya menyediakan rememberM3VicoTheme,
+    // sedangkan API grafiknya sendiri ada di compose. Sebelumnya vico-compose dipasang
+    // sebagai debugImplementation, jadi build release bergantung pada resolusi transitif
+    // yang kebetulan saja berhasil.
+    implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -98,5 +103,4 @@ dependencies {
     androidTestImplementation(libs.org.jetbrains.kotlinx.coroutines.test)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.vico.compose)
 }

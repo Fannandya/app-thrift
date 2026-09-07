@@ -39,6 +39,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mamay.cobain.domain.dailySalesSeries
+import com.mamay.cobain.presentation.ui.components.SalesChart
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 import com.mamay.cobain.util.formatRupiah
 import kotlin.time.Duration.Companion.days
@@ -57,6 +59,7 @@ fun DashboardScreen(
     val items by viewModel.items.collectAsState()
     val sales by viewModel.sales.collectAsState()
     val profile by viewModel.storeProfile.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
 
     var selectedRange by remember { mutableStateOf(SalesRange.ALL) }
 
@@ -74,7 +77,14 @@ fun DashboardScreen(
     val availableItems = unsoldItems.sumOf { it.quantity }
     val soldItems = filteredSales.sumOf { it.quantity }
     val totalItems = availableItems + soldItems
-    val totalRevenue = filteredSales.sumOf { it.totalPrice.toLong() }
+    val filteredTransactions = if (cutoff == null) {
+        transactions
+    } else {
+        transactions.filter { it.timestamp >= cutoff }
+    }
+    // total, bukan jumlah harga baris: diskon sudah dipotong, jadi inilah uang yang
+    // benar-benar masuk ke laci kasir.
+    val totalRevenue = filteredTransactions.sumOf { it.total.toLong() }
     val totalInvestment = unsoldItems.sumOf { it.quantity.toLong() * it.buyPrice }
     val potentialRevenue = unsoldItems.sumOf { it.quantity.toLong() * it.sellPrice }
     val recentTransactions = filteredSales
@@ -187,6 +197,23 @@ fun DashboardScreen(
             label = "Potensi Pendapatan (belum terjual)",
             value = formatRupiah(potentialRevenue),
             modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = "Penjualan Harian",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        SalesChart(
+            data = dailySalesSeries(
+                transactions = transactions,
+                // "Semua" tetap digambar 30 hari: kolom setahun penuh tidak terbaca
+                // di layar HP, sementara kartu ringkasan di atas sudah memuat totalnya.
+                days = if (selectedRange == SalesRange.WEEK) 7 else 30
+            )
         )
 
         Spacer(modifier = Modifier.height(20.dp))
