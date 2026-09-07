@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,9 +44,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.domain.DiscountType
+import com.mamay.cobain.domain.calculateCheckoutTotals
 import com.mamay.cobain.presentation.viewmodel.CartLine
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 import com.mamay.cobain.util.formatRupiah
@@ -162,8 +168,8 @@ fun CashierScreen(
             onIncrement = { item -> viewModel.updateCartQuantity(item, (cartQuantityById[item.id] ?: 0) + 1) },
             onDecrement = { item -> viewModel.updateCartQuantity(item, (cartQuantityById[item.id] ?: 0) - 1) },
             onRemove = { item -> viewModel.removeFromCart(item) },
-            onConfirm = {
-                viewModel.checkout()
+            onConfirm = { type, value, paid ->
+                viewModel.checkout(type, value, paid)
                 showCheckoutDialog = false
             }
         )
@@ -305,9 +311,21 @@ private fun CheckoutDialog(
     onIncrement: (ThriftItem) -> Unit,
     onDecrement: (ThriftItem) -> Unit,
     onRemove: (ThriftItem) -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: (DiscountType, Int, Int) -> Unit
 ) {
-    val total = cart.sumOf { it.item.sellPrice * it.quantity }
+    var discountType by remember { mutableStateOf(DiscountType.NONE) }
+    var discountValue by remember { mutableStateOf("") }
+    var paidAmount by remember { mutableStateOf("") }
+
+    // Satu sumber kebenaran untuk semua angka di dialog ini: subtotal, diskon, total,
+    // dan kembalian dihitung ulang oleh fungsi yang sama yang dipakai ViewModel saat
+    // menyimpan, jadi yang dilihat kasir tidak akan pernah beda dari yang tercatat.
+    val totals = calculateCheckoutTotals(
+        subtotal = cart.sumOf { it.item.sellPrice * it.quantity },
+        discountType = discountType,
+        discountValue = discountValue.toIntOrNull() ?: 0,
+        paidAmount = paidAmount.toIntOrNull() ?: 0
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -318,7 +336,10 @@ private fun CheckoutDialog(
             } else {
                 Column(
                     modifier = Modifier
-                        .heightIn(max = 320.dp)
+                        // Cukup tinggi supaya kolom "Uang Dibayar" dan baris kembalian
+                        // ikut terlihat tanpa menggulir: itu kontrol terpenting di kasir,
+                        // dan menyembunyikannya di bawah lipatan memperlambat antrean.
+                        .heightIn(max = 520.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
                     cart.forEachIndexed { index, line ->
@@ -333,21 +354,105 @@ private fun CheckoutDialog(
                             onRemove = { onRemove(line.item) }
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Diskon",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DiscountType.entries.forEach { type ->
+                            FilterChip(
+                                selected = discountType == type,
+                                onClick = {
+                                    discountType = type
+                                    if (type == DiscountType.NONE) discountValue = ""
+                                },
+                                label = {
+                                    Text(
+                                        when (type) {
+                                            DiscountType.NONE -> "Tanpa"
+                                            DiscountType.AMOUNT -> "Rp"
+                                            DiscountType.PERCENT -> "%"
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    if (discountType != DiscountType.NONE) {
+                        OutlinedTextField(
+                            value = discountValue,
+                            onValueChange = { input -> discountValue = input.filter { it.isDigit() } },
+                            label = {
+                                Text(
+                                    if (discountType == DiscountType.PERCENT) "Diskon (%)" else "Diskon (Rp)"
+                                )
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    SummaryRow("Subtotal", formatRupiah(totals.subtotal))
+                    if (totals.discountAmount > 0) {
+                        SummaryRow(
+                            label = if (discountType == DiscountType.PERCENT) {
+                                "Diskon (${discountValue.toIntOrNull()?.coerceIn(0, 100) ?: 0}%)"
+                            } else {
+                                "Diskon"
+                            },
+                            value = "-${formatRupiah(totals.discountAmount)}",
+                            valueColor = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Total Harga",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Text(text = "TOTAL", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
-                            text = formatRupiah(total),
+                            text = formatRupiah(totals.total),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = paidAmount,
+                        onValueChange = { input -> paidAmount = input.filter { it.isDigit() } },
+                        label = { Text("Uang Dibayar (Tunai)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        isError = paidAmount.isNotEmpty() && !totals.isPaidEnough,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (totals.isPaidEnough) {
+                        SummaryRow(
+                            label = "Kembalian",
+                            value = formatRupiah(totals.changeAmount),
+                            valueColor = MaterialTheme.colorScheme.tertiary
+                        )
+                    } else {
+                        SummaryRow(
+                            label = "Kurang",
+                            value = formatRupiah(totals.total - (paidAmount.toIntOrNull() ?: 0)),
+                            valueColor = MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -355,8 +460,10 @@ private fun CheckoutDialog(
         },
         confirmButton = {
             Button(
-                onClick = onConfirm,
-                enabled = cart.isNotEmpty()
+                onClick = {
+                    onConfirm(discountType, discountValue.toIntOrNull() ?: 0, paidAmount.toIntOrNull() ?: 0)
+                },
+                enabled = cart.isNotEmpty() && totals.isPaidEnough
             ) {
                 Text("Selesaikan Transaksi")
             }
@@ -407,5 +514,33 @@ private fun CartLineRow(
                 tint = MaterialTheme.colorScheme.error
             )
         }
+    }
+}
+
+/** Satu baris ringkasan uang di dialog checkout: label di kiri, nominal rata kanan. */
+@Composable
+private fun SummaryRow(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor
+        )
     }
 }

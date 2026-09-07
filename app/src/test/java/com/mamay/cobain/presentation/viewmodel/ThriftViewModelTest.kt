@@ -3,6 +3,7 @@ package com.mamay.cobain.presentation.viewmodel
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.repository.FakeThriftItemRepository
+import com.mamay.cobain.domain.DiscountType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -102,7 +103,7 @@ class ThriftViewModelTest {
         viewModel.addToCart(jaket)
         viewModel.addToCart(jaket)
         viewModel.addToCart(kaos)
-        viewModel.checkout()
+        viewModel.checkout(DiscountType.NONE, 0, paidAmount = 120_000)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(0, viewModel.items.value.first { it.id == 1 }.quantity)
@@ -117,7 +118,7 @@ class ThriftViewModelTest {
 
     @Test
     fun `checkout with an empty cart is rejected without touching the repository`() = runTest {
-        viewModel.checkout()
+        viewModel.checkout(DiscountType.NONE, 0, paidAmount = 0)
         dispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.sales.value.isEmpty())
@@ -179,5 +180,76 @@ class ThriftViewModelTest {
         assertEquals("0812", profile.phone)
         assertEquals("Terima kasih", profile.receiptFooter)
         assertNull(viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `checkout with insufficient payment is rejected and keeps the cart`() = runTest {
+        repository.seedItem(ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = null, quantity = 2, buyPrice = 20_000, sellPrice = 50_000))
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.addToCart(viewModel.items.value.first())
+
+        viewModel.checkout(DiscountType.NONE, 0, paidAmount = 10_000)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.transactions.value.isEmpty())
+        // Keranjang sengaja dipertahankan: kasir harus bisa memperbaiki nominalnya.
+        assertEquals(1, viewModel.cart.value.size)
+        assertNotNull(viewModel.errorMessage.value)
+    }
+
+    @Test
+    fun `checkout records discount and change on the transaction`() = runTest {
+        repository.seedItem(ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = null, quantity = 2, buyPrice = 20_000, sellPrice = 50_000))
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.addToCart(viewModel.items.value.first())
+
+        viewModel.checkout(DiscountType.PERCENT, 10, paidAmount = 100_000)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val transaction = viewModel.transactions.value.single()
+        assertEquals(50_000, transaction.subtotal)
+        assertEquals(5_000, transaction.discountAmount)
+        assertEquals(45_000, transaction.total)
+        assertEquals(100_000, transaction.paidAmount)
+        assertEquals(55_000, transaction.changeAmount)
+        assertEquals(DiscountType.PERCENT.name, transaction.discountType)
+        assertTrue(viewModel.cart.value.isEmpty())
+        assertNotNull(viewModel.lastReceipt.value)
+    }
+
+    @Test
+    fun `checkout discounts only the lines that survived the live stock re-read`() = runTest {
+        // Barang kedua habis setelah masuk keranjang: diskon tidak boleh dihitung dari
+        // tagihan yang tidak jadi dibayar pembeli.
+        repository.seedItem(ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = null, quantity = 1, buyPrice = 20_000, sellPrice = 50_000))
+        repository.seedItem(ThriftItem(id = 2, name = "Kaos", sizeId = 1, categoryId = null, quantity = 1, buyPrice = 8_000, sellPrice = 30_000))
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.addToCart(viewModel.items.value.first { it.id == 1 })
+        viewModel.addToCart(viewModel.items.value.first { it.id == 2 })
+
+        viewModel.deleteItem(viewModel.items.value.first { it.id == 2 })
+        dispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.checkout(DiscountType.AMOUNT, 5_000, paidAmount = 50_000)
+        dispatcher.scheduler.advanceUntilIdle()
+
+        val transaction = viewModel.transactions.value.single()
+        assertEquals(50_000, transaction.subtotal)
+        assertEquals(45_000, transaction.total)
+        assertEquals(5_000, transaction.changeAmount)
+    }
+
+    @Test
+    fun `consumeReceipt clears the receipt so it does not reappear`() = runTest {
+        repository.seedItem(ThriftItem(id = 1, name = "Jaket", sizeId = 1, categoryId = null, quantity = 1, buyPrice = 20_000, sellPrice = 50_000))
+        dispatcher.scheduler.advanceUntilIdle()
+        viewModel.addToCart(viewModel.items.value.first())
+        viewModel.checkout(DiscountType.NONE, 0, paidAmount = 50_000)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNotNull(viewModel.lastReceipt.value)
+
+        viewModel.consumeReceipt()
+
+        assertNull(viewModel.lastReceipt.value)
     }
 }

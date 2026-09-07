@@ -9,7 +9,9 @@ import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import com.mamay.cobain.data.repository.ThriftItemRepository
+import com.mamay.cobain.util.formatRupiah
 import com.mamay.cobain.domain.DiscountType
+import com.mamay.cobain.domain.calculateCheckoutTotals
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +50,13 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
 
     private val _cart = MutableStateFlow<List<CartLine>>(emptyList())
     val cart: StateFlow<List<CartLine>> = _cart.asStateFlow()
+
+    private val _lastReceipt = MutableStateFlow<ReceiptData?>(null)
+    val lastReceipt: StateFlow<ReceiptData?> = _lastReceipt.asStateFlow()
+
+    fun consumeReceipt() {
+        _lastReceipt.value = null
+    }
 
     fun consumeErrorMessage() {
         _errorMessage.value = null
@@ -202,9 +211,14 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
      * Re-reads live stock instead of trusting the quantities captured when items
      * were added to the cart, in case stock changed (edited/deleted) in the
      * meantime. Every line item of the checkout shares one transactionId/timestamp
-     * so the dashboard can show it as a single transaction.
+     * with its SaleTransaction header.
+     *
+     * The subtotal is computed from the lines that actually survived that re-read,
+     * not from the cart, so a discount is never applied to a bill the customer is
+     * not paying. An underpayment aborts without clearing the cart: the cashier has
+     * to be able to correct the amount, not start the whole sale over.
      */
-    fun checkout() {
+    fun checkout(discountType: DiscountType, discountValue: Int, paidAmount: Int) {
         val lines = _cart.value
         if (lines.isEmpty()) {
             _errorMessage.value = "Keranjang masih kosong"
@@ -241,20 +255,29 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
             return
         }
         val subtotal = sales.sumOf { it.totalPrice }
+        val totals = calculateCheckoutTotals(subtotal, discountType, discountValue, paidAmount)
+        if (!totals.isPaidEnough) {
+            _errorMessage.value =
+                "Uang yang dibayar kurang ${formatRupiah(totals.total - paidAmount.coerceAtLeast(0))}"
+            return
+        }
         val transaction = SaleTransaction(
             id = transactionId,
             timestamp = timestamp,
-            subtotal = subtotal,
-            discountType = DiscountType.NONE.name,
-            discountValue = 0,
-            discountAmount = 0,
-            total = subtotal,
-            paidAmount = subtotal,
-            changeAmount = 0
+            subtotal = totals.subtotal,
+            discountType = discountType.name,
+            discountValue = discountValue,
+            discountAmount = totals.discountAmount,
+            total = totals.total,
+            paidAmount = paidAmount.coerceAtLeast(0),
+            changeAmount = totals.changeAmount
         )
         viewModelScope.launch {
             repository.recordSaleTransaction(updatedItems, transaction, sales)
-                .onSuccess { _cart.value = emptyList() }
+                .onSuccess {
+                    _cart.value = emptyList()
+                    _lastReceipt.value = ReceiptData(transaction, sales)
+                }
                 .onFailure(::reportFailure)
         }
     }
@@ -280,3 +303,6 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
 }
 
 data class CartLine(val item: ThriftItem, val quantity: Int)
+
+/** One completed checkout, held just long enough for the receipt dialog to show it. */
+data class ReceiptData(val transaction: SaleTransaction, val lines: List<ThriftSale>)
