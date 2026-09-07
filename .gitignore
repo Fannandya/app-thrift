@@ -19,3 +19,8 @@ inventaris-thrift.zip
 AGENTS.md
 graphify-out
 .opencode
+# Kredensial signing release - jangan pernah masuk git
+/keystore.properties
+/release-keystore.jks
+*.jks
+*.keystore
