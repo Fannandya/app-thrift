@@ -50,7 +50,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.domain.DiscountType
+import com.mamay.cobain.domain.buildReceiptText
 import com.mamay.cobain.domain.calculateCheckoutTotals
+import com.mamay.cobain.presentation.ui.components.ReceiptDialog
 import com.mamay.cobain.presentation.viewmodel.CartLine
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 import com.mamay.cobain.util.formatRupiah
@@ -68,6 +70,7 @@ fun CashierScreen(
     val sizes by viewModel.sizes.collectAsState()
     val cart by viewModel.cart.collectAsState()
     val profile by viewModel.storeProfile.collectAsState()
+    val lastReceipt by viewModel.lastReceipt.collectAsState()
     val availableItems = items.filter { it.quantity > 0 && !it.isSold }
     val categoryNameById = remember(categories) { categories.associate { it.id to it.name } }
     val sizeNameById = remember(sizes) { sizes.associate { it.id to it.name } }
@@ -158,6 +161,15 @@ fun CashierScreen(
                 onCheckoutClick = { showCheckoutDialog = true }
             )
         }
+    }
+
+    // Muncul otomatis begitu transaksi tersimpan, jadi kasir tidak perlu mencari
+    // menu apa pun untuk memberi struk ke pembeli.
+    lastReceipt?.let { receipt ->
+        ReceiptDialog(
+            receiptText = buildReceiptText(profile, receipt.transaction, receipt.lines),
+            onDismiss = { viewModel.consumeReceipt() }
+        )
     }
 
     if (showCheckoutDialog) {
