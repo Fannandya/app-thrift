@@ -49,6 +49,7 @@ fun ThriftInventoryScreen(
     val items by viewModel.items.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val sizes by viewModel.sizes.collectAsState()
+    val profile by viewModel.storeProfile.collectAsState()
 
     var selectedItemId by rememberSaveable { mutableStateOf<Int?>(null) }
 
@@ -97,7 +98,7 @@ fun ThriftInventoryScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Inventaris Pakaian Thrift") },
+                title = { Text("Inventaris \u00b7 ${profile.storeName.ifBlank { "Toko Belum Diberi Nama" }}") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary

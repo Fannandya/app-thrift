@@ -56,6 +56,7 @@ fun DashboardScreen(
 ) {
     val items by viewModel.items.collectAsState()
     val sales by viewModel.sales.collectAsState()
+    val profile by viewModel.storeProfile.collectAsState()
 
     var selectedRange by remember { mutableStateOf(SalesRange.ALL) }
 
@@ -97,15 +98,25 @@ fun DashboardScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Ringkasan Inventaris",
+            text = profile.storeName.ifBlank { "Toko Belum Diberi Nama" },
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = "Pantau performa penjualan pakaian thrift-mu",
+            text = "Ringkasan performa penjualan",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        if (profile.storeName.isBlank()) {
+            Text(
+                text = "Nama toko belum diisi. Buka Pengaturan -> Profil Toko " +
+                    "supaya nama toko muncul di sini dan di struk.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 

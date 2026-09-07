@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,7 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
-private enum class SettingsSection { NONE, CATEGORIES, SIZES }
+private enum class SettingsSection { NONE, STORE, CATEGORIES, SIZES }
 
 @Composable
 fun SettingsScreen(
@@ -39,6 +40,12 @@ fun SettingsScreen(
     val section = SettingsSection.valueOf(sectionName)
 
     when (section) {
+        SettingsSection.STORE -> StoreProfileScreen(
+            viewModel = viewModel,
+            onBack = { sectionName = SettingsSection.NONE.name },
+            modifier = modifier
+        )
+
         SettingsSection.CATEGORIES -> CategoryManagementScreen(
             viewModel = viewModel,
             onBack = { sectionName = SettingsSection.NONE.name },
@@ -52,6 +59,7 @@ fun SettingsScreen(
         )
 
         SettingsSection.NONE -> SettingsMenuScreen(
+            onStoreClick = { sectionName = SettingsSection.STORE.name },
             onCategoriesClick = { sectionName = SettingsSection.CATEGORIES.name },
             onSizesClick = { sectionName = SettingsSection.SIZES.name },
             modifier = modifier
@@ -61,6 +69,7 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsMenuScreen(
+    onStoreClick: () -> Unit,
     onCategoriesClick: () -> Unit,
     onSizesClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -82,6 +91,15 @@ private fun SettingsMenuScreen(
         )
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        SettingOptionCard(
+            icon = Icons.Default.Storefront,
+            title = "Profil Toko",
+            description = "Nama, alamat, telepon, dan catatan struk",
+            onClick = onStoreClick
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         SettingOptionCard(
             icon = Icons.Default.Category,

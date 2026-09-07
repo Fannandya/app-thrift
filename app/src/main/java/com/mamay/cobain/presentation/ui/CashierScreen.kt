@@ -61,6 +61,7 @@ fun CashierScreen(
     val categories by viewModel.categories.collectAsState()
     val sizes by viewModel.sizes.collectAsState()
     val cart by viewModel.cart.collectAsState()
+    val profile by viewModel.storeProfile.collectAsState()
     val availableItems = items.filter { it.quantity > 0 && !it.isSold }
     val categoryNameById = remember(categories) { categories.associate { it.id to it.name } }
     val sizeNameById = remember(sizes) { sizes.associate { it.id to it.name } }
@@ -84,7 +85,7 @@ fun CashierScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Kasir",
+            text = "Kasir \u00b7 ${profile.storeName.ifBlank { "Toko Belum Diberi Nama" }}",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
