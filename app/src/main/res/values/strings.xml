@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">cobain</string>
+    <!-- Label peluncur dipanggang ke APK saat build dan dibaca Android sebelum
+         aplikasi jalan, jadi ini satu-satunya nama yang tidak bisa datang dari
+         database. Nama TOKO diatur di Pengaturan Toko dan dipakai di seluruh layar
+         serta struk. -->
+    <string name="app_name">Kasir Toko</string>
 </resources>
