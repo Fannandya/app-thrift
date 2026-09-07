@@ -21,7 +21,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.SET_NULL
         )
     ],
-    indices = [Index("itemId")]
+    indices = [Index("itemId"), Index("transactionId")]
 )
 data class ThriftSale(
     @PrimaryKey(autoGenerate = true)

@@ -2,6 +2,7 @@ package com.mamay.cobain.data.repository
 
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.SaleTransaction
 import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
@@ -18,6 +19,7 @@ interface ThriftItemRepository {
     val allCategories: Flow<List<ItemCategory>>
     val allSizes: Flow<List<ItemSize>>
     val allSales: Flow<List<ThriftSale>>
+    val allTransactions: Flow<List<SaleTransaction>>
     val storeProfile: Flow<StoreProfile>
 
     suspend fun insert(item: ThriftItem): Result<Unit>
@@ -32,5 +34,9 @@ interface ThriftItemRepository {
 
     suspend fun saveStoreProfile(profile: StoreProfile): Result<Unit>
 
-    suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit>
+    suspend fun recordSaleTransaction(
+        items: List<ThriftItem>,
+        transaction: SaleTransaction,
+        sales: List<ThriftSale>
+    ): Result<Unit>
 }

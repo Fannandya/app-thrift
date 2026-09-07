@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.SaleTransaction
 import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import com.mamay.cobain.data.repository.ThriftItemRepository
+import com.mamay.cobain.domain.DiscountType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +35,9 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val sales: StateFlow<List<ThriftSale>> = repository.allSales
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val transactions: StateFlow<List<SaleTransaction>> = repository.allTransactions
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val storeProfile: StateFlow<StoreProfile> = repository.storeProfile
@@ -235,8 +240,20 @@ class ThriftViewModel(private val repository: ThriftItemRepository) : ViewModel(
             _cart.value = emptyList()
             return
         }
+        val subtotal = sales.sumOf { it.totalPrice }
+        val transaction = SaleTransaction(
+            id = transactionId,
+            timestamp = timestamp,
+            subtotal = subtotal,
+            discountType = DiscountType.NONE.name,
+            discountValue = 0,
+            discountAmount = 0,
+            total = subtotal,
+            paidAmount = subtotal,
+            changeAmount = 0
+        )
         viewModelScope.launch {
-            repository.recordSaleTransaction(updatedItems, sales)
+            repository.recordSaleTransaction(updatedItems, transaction, sales)
                 .onSuccess { _cart.value = emptyList() }
                 .onFailure(::reportFailure)
         }

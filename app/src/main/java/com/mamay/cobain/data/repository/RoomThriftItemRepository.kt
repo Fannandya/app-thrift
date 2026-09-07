@@ -4,6 +4,7 @@ import com.mamay.cobain.data.dao.StoreProfileDao
 import com.mamay.cobain.data.dao.ThriftItemDao
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.SaleTransaction
 import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
@@ -23,6 +24,7 @@ class RoomThriftItemRepository(
     override val allCategories: Flow<List<ItemCategory>> = dao.getAllCategories()
     override val allSizes: Flow<List<ItemSize>> = dao.getAllSizes()
     override val allSales: Flow<List<ThriftSale>> = dao.getAllSales()
+    override val allTransactions: Flow<List<SaleTransaction>> = dao.getAllTransactions()
 
     // A fresh install creates store_profile from Room's own schema, not from
     // MIGRATION_2_3, so the seeded row is not there and the query emits null.
@@ -62,8 +64,12 @@ class RoomThriftItemRepository(
         storeProfileDao.upsertProfile(profile.copy(id = StoreProfile.SINGLETON_ID))
     }
 
-    override suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit> = safeCall {
-        dao.recordSaleTransaction(items, sales)
+    override suspend fun recordSaleTransaction(
+        items: List<ThriftItem>,
+        transaction: SaleTransaction,
+        sales: List<ThriftSale>
+    ): Result<Unit> = safeCall {
+        dao.recordSaleTransaction(items, transaction, sales)
     }
 
     private suspend fun safeCall(block: suspend () -> Unit): Result<Unit> =

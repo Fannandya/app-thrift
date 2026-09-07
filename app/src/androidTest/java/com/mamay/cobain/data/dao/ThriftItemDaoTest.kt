@@ -6,6 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.mamay.cobain.data.AppDatabase
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.SaleTransaction
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.first
@@ -70,6 +71,17 @@ class ThriftItemDaoTest {
                 jaket.copy(quantity = jaket.quantity - 1),
                 kaos.copy(quantity = kaos.quantity - 2)
             ),
+            transaction = SaleTransaction(
+                id = transactionId,
+                timestamp = timestamp,
+                subtotal = 90_000,
+                discountType = "NONE",
+                discountValue = 0,
+                discountAmount = 0,
+                total = 90_000,
+                paidAmount = 100_000,
+                changeAmount = 10_000
+            ),
             sales = listOf(
                 ThriftSale(
                     transactionId = transactionId,
@@ -101,6 +113,11 @@ class ThriftItemDaoTest {
         val sales = dao.getAllSales().first()
         assertEquals(2, sales.size)
         assertEquals(1, sales.map { it.transactionId }.distinct().size)
+
+        val transactions = dao.getAllTransactions().first()
+        assertEquals(1, transactions.size)
+        assertEquals(transactionId, transactions.single().id)
+        assertEquals(10_000, transactions.single().changeAmount)
     }
 
     @Test
@@ -128,5 +145,49 @@ class ThriftItemDaoTest {
 
         val sales = dao.getAllSales().first()
         assertEquals(itemId, sales.single().itemId)
+    }
+
+    @Test
+    fun everyCheckoutGetsItsOwnTransactionHeader() = runBlocking {
+        val sizeId = dao.insertSize(ItemSize(name = "M")).toInt()
+        val itemId = dao.insertItem(
+            ThriftItem(name = "Topi", sizeId = sizeId, categoryId = null, quantity = 10, buyPrice = 5_000, sellPrice = 15_000)
+        ).toInt()
+
+        repeat(2) { index ->
+            val item = dao.getItemById(itemId)!!
+            dao.recordSaleTransaction(
+                items = listOf(item.copy(quantity = item.quantity - 1)),
+                transaction = SaleTransaction(
+                    id = "txn-$index",
+                    timestamp = 1_000L + index,
+                    subtotal = 15_000,
+                    discountType = "NONE",
+                    discountValue = 0,
+                    discountAmount = 0,
+                    total = 15_000,
+                    paidAmount = 15_000,
+                    changeAmount = 0
+                ),
+                sales = listOf(
+                    ThriftSale(
+                        transactionId = "txn-$index",
+                        itemId = itemId,
+                        itemName = "Topi",
+                        size = "M",
+                        category = "",
+                        quantity = 1,
+                        sellPrice = 15_000,
+                        totalPrice = 15_000,
+                        timestamp = 1_000L + index
+                    )
+                )
+            )
+        }
+
+        assertEquals(8, dao.getItemById(itemId)?.quantity)
+        assertEquals(2, dao.getAllTransactions().first().size)
+        // Setiap baris penjualan harus tetap menunjuk itemnya walau stok sudah dua kali diubah.
+        assertEquals(listOf(itemId, itemId), dao.getAllSales().first().map { it.itemId })
     }
 }

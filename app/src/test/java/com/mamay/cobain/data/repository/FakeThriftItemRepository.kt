@@ -2,6 +2,7 @@ package com.mamay.cobain.data.repository
 
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.SaleTransaction
 import com.mamay.cobain.data.entity.StoreProfile
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
@@ -17,6 +18,7 @@ class FakeThriftItemRepository : ThriftItemRepository {
     private val categoriesFlow = MutableStateFlow<List<ItemCategory>>(emptyList())
     private val sizesFlow = MutableStateFlow<List<ItemSize>>(emptyList())
     private val salesFlow = MutableStateFlow<List<ThriftSale>>(emptyList())
+    private val transactionsFlow = MutableStateFlow<List<SaleTransaction>>(emptyList())
     private val storeProfileFlow = MutableStateFlow(StoreProfile())
 
     /** Set true to make the next mutating call return Result.failure. */
@@ -26,6 +28,7 @@ class FakeThriftItemRepository : ThriftItemRepository {
     override val allCategories: Flow<List<ItemCategory>> = categoriesFlow
     override val allSizes: Flow<List<ItemSize>> = sizesFlow
     override val allSales: Flow<List<ThriftSale>> = salesFlow
+    override val allTransactions: Flow<List<SaleTransaction>> = transactionsFlow
     override val storeProfile: Flow<StoreProfile> = storeProfileFlow
 
     override suspend fun insert(item: ThriftItem): Result<Unit> = mutate {
@@ -63,9 +66,14 @@ class FakeThriftItemRepository : ThriftItemRepository {
         storeProfileFlow.value = profile
     }
 
-    override suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>): Result<Unit> = mutate {
+    override suspend fun recordSaleTransaction(
+        items: List<ThriftItem>,
+        transaction: SaleTransaction,
+        sales: List<ThriftSale>
+    ): Result<Unit> = mutate {
         val updatedById = items.associateBy { it.id }
         itemsFlow.value = itemsFlow.value.map { updatedById[it.id] ?: it }
+        transactionsFlow.value = transactionsFlow.value + transaction
         var nextId = (salesFlow.value.maxOfOrNull { it.id } ?: 0)
         salesFlow.value = salesFlow.value + sales.map { sale -> sale.copy(id = ++nextId) }
     }

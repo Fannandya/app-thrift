@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.mamay.cobain.data.entity.ItemCategory
 import com.mamay.cobain.data.entity.ItemSize
+import com.mamay.cobain.data.entity.SaleTransaction
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.data.entity.ThriftSale
 import kotlinx.coroutines.flow.Flow
@@ -62,16 +63,27 @@ interface ThriftItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSale(sale: ThriftSale): Long
 
+    @Query("SELECT * FROM sale_transactions ORDER BY timestamp DESC")
+    fun getAllTransactions(): Flow<List<SaleTransaction>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransaction(transaction: SaleTransaction)
+
     /**
-     * Reducing stock and recording the sale lines must land together: a crash or
-     * process death partway through would otherwise let some sale rows exist
-     * against stock that was never decremented (or vice versa). One checkout can
-     * cover several distinct items, so both lists are updated/inserted in one
-     * transaction rather than one item/sale pair at a time.
+     * Reducing stock, writing the transaction header, and recording its line items
+     * must land together: a crash or process death partway through would otherwise
+     * let some sale rows exist against stock that was never decremented, or leave a
+     * header with no lines. The header goes in before the lines so nothing ever
+     * reads an orphan line.
      */
     @Transaction
-    suspend fun recordSaleTransaction(items: List<ThriftItem>, sales: List<ThriftSale>) {
+    suspend fun recordSaleTransaction(
+        items: List<ThriftItem>,
+        transaction: SaleTransaction,
+        sales: List<ThriftSale>
+    ) {
         items.forEach { updateItem(it) }
+        insertTransaction(transaction)
         sales.forEach { insertSale(it) }
     }
 }
