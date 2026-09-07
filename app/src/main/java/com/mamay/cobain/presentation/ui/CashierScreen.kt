@@ -40,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,7 @@ import com.mamay.cobain.domain.DiscountType
 import com.mamay.cobain.domain.buildReceiptText
 import com.mamay.cobain.domain.calculateCheckoutTotals
 import com.mamay.cobain.presentation.ui.components.ReceiptDialog
+import com.mamay.cobain.presentation.ui.components.SearchField
 import com.mamay.cobain.presentation.viewmodel.CartLine
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 import com.mamay.cobain.util.formatRupiah
@@ -81,12 +83,11 @@ fun CashierScreen(
     }
     var selectedCategoryId by remember { mutableStateOf(ALL_CATEGORIES_ID) }
     var showCheckoutDialog by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
 
-    val filteredItems = if (selectedCategoryId == ALL_CATEGORIES_ID) {
-        availableItems
-    } else {
-        availableItems.filter { it.categoryId == selectedCategoryId }
-    }
+    val filteredItems = availableItems
+        .filter { selectedCategoryId == ALL_CATEGORIES_ID || it.categoryId == selectedCategoryId }
+        .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
 
     Column(
         modifier = modifier
@@ -102,6 +103,14 @@ fun CashierScreen(
             text = "Layani penjualan dengan memilih barang yang dibeli",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        SearchField(
+            query = query,
+            onQueryChange = { query = it },
+            placeholder = "Cari nama barang..."
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -128,7 +137,11 @@ fun CashierScreen(
         if (filteredItems.isEmpty()) {
             Box(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Tidak ada barang tersedia di kategori ini.",
+                    text = if (query.isNotBlank()) {
+                        "Tidak ada barang dengan nama \"$query\"."
+                    } else {
+                        "Tidak ada barang tersedia di kategori ini."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 16.dp)

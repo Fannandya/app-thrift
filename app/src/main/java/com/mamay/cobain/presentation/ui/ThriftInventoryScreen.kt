@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mamay.cobain.presentation.ui.components.SearchField
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
 private const val ALL_CATEGORIES_ID = -1
@@ -83,8 +84,10 @@ fun ThriftInventoryScreen(
     var selectedStatusFilterName by rememberSaveable { mutableStateOf(StatusFilter.ALL.name) }
     val selectedStatusFilter = StatusFilter.valueOf(selectedStatusFilterName)
     var showAddDialog by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
 
     val filteredItems = items
+        .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
         .filter { selectedCategoryId == ALL_CATEGORIES_ID || it.categoryId == selectedCategoryId }
         .filter {
             when (selectedStatusFilter) {
@@ -120,6 +123,14 @@ fun ThriftInventoryScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = "Cari nama barang..."
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
                     FilterChip(
@@ -153,7 +164,11 @@ fun ThriftInventoryScreen(
 
             if (filteredItems.isEmpty()) {
                 Text(
-                    text = "Tidak ada barang yang cocok dengan filter ini.",
+                    text = if (query.isNotBlank()) {
+                        "Tidak ada barang dengan nama \"$query\"."
+                    } else {
+                        "Tidak ada barang yang cocok dengan filter ini."
+                    },
                     modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
