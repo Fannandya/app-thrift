@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Straighten
@@ -15,24 +16,30 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.mamay.cobain.CobainApplication
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
+import kotlinx.coroutines.launch
 
 private enum class SettingsSection { NONE, STORE, CATEGORIES, SIZES }
 
 @Composable
 fun SettingsScreen(
     viewModel: ThriftViewModel,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
     // Nama enum, bukan enum-nya: rememberSaveable butuh tipe yang bisa masuk Bundle.
@@ -59,6 +66,7 @@ fun SettingsScreen(
         )
 
         SettingsSection.NONE -> SettingsMenuScreen(
+            snackbarHostState = snackbarHostState,
             onStoreClick = { sectionName = SettingsSection.STORE.name },
             onCategoriesClick = { sectionName = SettingsSection.CATEGORIES.name },
             onSizesClick = { sectionName = SettingsSection.SIZES.name },
@@ -69,11 +77,17 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsMenuScreen(
+    snackbarHostState: SnackbarHostState,
     onStoreClick: () -> Unit,
     onCategoriesClick: () -> Unit,
     onSizesClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // AppContainer diambil dari Application, bukan dirantai lewat MainScreen: ekspor
+    // adalah urusan infrastruktur (berkas database), bukan state yang dipegang ViewModel.
+    val container = (LocalContext.current.applicationContext as CobainApplication).container
+    val scope = rememberCoroutineScope()
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -115,6 +129,26 @@ private fun SettingsMenuScreen(
             title = "Kelola Ukuran",
             description = "Tambah atau hapus ukuran pakaian",
             onClick = onSizesClick
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SettingOptionCard(
+            icon = Icons.Default.Backup,
+            title = "Cadangkan Data",
+            description = "Simpan salinan database ke penyimpanan aplikasi",
+            onClick = {
+                scope.launch {
+                    val file = runCatching { container.exportDatabase() }.getOrNull()
+                    snackbarHostState.showSnackbar(
+                        if (file == null) {
+                            "Gagal mencadangkan data."
+                        } else {
+                            "Cadangan tersimpan: ${'$'}{file.absolutePath}"
+                        }
+                    )
+                }
+            }
         )
     }
 }

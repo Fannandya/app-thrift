@@ -103,6 +103,7 @@ fun MainScreen(viewModel: ThriftViewModel) {
             )
             MainTab.Pengaturan -> SettingsScreen(
                 viewModel = viewModel,
+                snackbarHostState = snackbarHostState,
                 modifier = Modifier.padding(innerPadding)
             )
         }
