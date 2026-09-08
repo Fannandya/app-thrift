@@ -24,7 +24,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,12 +47,14 @@ fun StoreProfileScreen(
 ) {
     BackHandler(onBack = onBack)
 
-    val profile by viewModel.storeProfile.collectAsState()
+    val profile by viewModel.storeProfile.collectAsStateWithLifecycle()
 
     var storeName by remember { mutableStateOf(profile.storeName) }
     var address by remember { mutableStateOf(profile.address) }
     var phone by remember { mutableStateOf(profile.phone) }
     var receiptFooter by remember { mutableStateOf(profile.receiptFooter) }
+    var itemTerm by remember { mutableStateOf(profile.itemTerm) }
+    var lowStockThreshold by remember { mutableStateOf(profile.lowStockThreshold.toString()) }
 
     // The profile Flow emits after the first composition, so the fields start empty
     // and have to be refilled once the stored values actually arrive.
@@ -61,6 +63,8 @@ fun StoreProfileScreen(
         address = profile.address
         phone = profile.phone
         receiptFooter = profile.receiptFooter
+        itemTerm = profile.itemTerm
+        lowStockThreshold = profile.lowStockThreshold.toString()
     }
 
     Scaffold(
@@ -74,9 +78,9 @@ fun StoreProfileScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -142,11 +146,42 @@ fun StoreProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = itemTerm,
+                onValueChange = { itemTerm = it },
+                label = { Text("Istilah Barang") },
+                singleLine = true,
+                placeholder = { Text("Barang / Produk / Sepatu") },
+                supportingText = { Text("Dipakai di label & judul, mis. \"Nama ${itemTerm.ifBlank { "Barang" }}\".") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = lowStockThreshold,
+                onValueChange = { lowStockThreshold = it.filter { c -> c.isDigit() } },
+                label = { Text("Ambang Stok Menipis") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                supportingText = { Text("Barang dengan sisa jumlah di bawah/sama dengan angka ini muncul di Dashboard.") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    viewModel.saveStoreProfile(storeName, address, phone, receiptFooter)
+                    viewModel.saveStoreProfile(
+                        storeName,
+                        address,
+                        phone,
+                        receiptFooter,
+                        itemTerm,
+                        lowStockThreshold.toIntOrNull() ?: 0
+                    )
                     onBack()
                 },
                 enabled = storeName.isNotBlank(),
