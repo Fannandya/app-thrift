@@ -93,6 +93,26 @@ class ReceiptBuilderTest {
     }
 
     @Test
+    fun `line shows the joined attribute summary in parentheses`() {
+        val withAttrs = lines.map { it.copy(attributesSummary = "Merah · M") }
+        val receipt = buildReceiptText(profile, transaction, withAttrs, jakarta)
+
+        assertTrue(receipt.contains("(Merah · M)"))
+    }
+
+    @Test
+    fun `per-item discount prints the original price, the cut, and a total`() {
+        val discounted = listOf(
+            lines[0].copy(originalSellPrice = 12_500, sellPrice = 10_000, discountPercent = 20)
+        )
+        val receipt = buildReceiptText(profile, transaction, discounted, jakarta)
+
+        assertTrue(receipt.contains("Rp12.500"))
+        assertTrue(receipt.contains("Diskon 20%"))
+        assertTrue(receipt.contains("Diskon Barang"))
+    }
+
+    @Test
     fun `no discount line is printed when there is no discount`() {
         val noDiscount = transaction.copy(
             discountType = DiscountType.NONE.name,

@@ -22,3 +22,11 @@
 
 # Room and kotlinx.serialization ship their own consumer ProGuard rules, so entities,
 # DAOs, and @Serializable legacy DTOs don't need to be kept by hand here.
+
+# fastexcel (.xlsx export) and its streaming-zip helper opczip. Neither ships
+# consumer rules; keep their public API and silence warnings about the optional
+# javax.xml / SAX classes they reference but never touch on our write-only path.
+-keep class org.dhatim.fastexcel.** { *; }
+-dontwarn org.dhatim.fastexcel.**
+-dontwarn com.github.rzymek.opczip.**
+-dontwarn javax.xml.**

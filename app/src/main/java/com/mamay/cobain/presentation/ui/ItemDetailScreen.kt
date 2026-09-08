@@ -2,9 +2,7 @@ package com.mamay.cobain.presentation.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,11 +30,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mamay.cobain.data.entity.Discount
+import com.mamay.cobain.data.entity.ItemAttribute
+import com.mamay.cobain.data.entity.ItemAttributeOption
 import com.mamay.cobain.data.entity.ItemCategory
-import com.mamay.cobain.data.entity.ItemSize
 import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.domain.applyPercent
 import com.mamay.cobain.presentation.ui.components.ConfirmDialog
 import com.mamay.cobain.presentation.ui.components.DetailRow
+import com.mamay.cobain.presentation.ui.components.DiscountBadge
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 import com.mamay.cobain.util.formatRupiah
 
@@ -45,7 +47,11 @@ import com.mamay.cobain.util.formatRupiah
 fun ItemDetailScreen(
     item: ThriftItem,
     categories: List<ItemCategory>,
-    sizes: List<ItemSize>,
+    attributes: List<ItemAttribute>,
+    attributeOptions: List<ItemAttributeOption>,
+    attributeValuesForItem: Map<Int, String>,
+    activeDiscount: Discount?,
+    itemTerm: String,
     viewModel: ThriftViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -56,7 +62,6 @@ fun ItemDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     val categoryName = categories.find { it.id == item.categoryId }?.name ?: ""
-    val sizeName = sizes.find { it.id == item.sizeId }?.name ?: ""
     val estimatedProfit = (item.sellPrice - item.buyPrice) * item.quantity
 
     Scaffold(
@@ -70,9 +75,9 @@ fun ItemDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -99,15 +104,29 @@ fun ItemDetailScreen(
 
             DetailRow("Kategori", categoryName.ifBlank { "-" })
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            DetailRow("Ukuran", sizeName.ifBlank { "-" })
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            attributes.sortedBy { it.displayOrder }.forEach { attr ->
+                DetailRow(attr.name, attributeValuesForItem[attr.id].orEmpty().ifBlank { "-" })
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
             DetailRow("Jumlah", item.quantity.toString())
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             DetailRow("Harga Beli", formatRupiah(item.buyPrice))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             DetailRow("Harga Jual", formatRupiah(item.sellPrice))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            if (activeDiscount != null) {
+                DetailRow(
+                    "Harga Setelah Diskon",
+                    formatRupiah(applyPercent(item.sellPrice, activeDiscount.percent))
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
             DetailRow("Estimasi Untung", formatRupiah(estimatedProfit))
+
+            if (activeDiscount != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                DiscountBadge(activeDiscount)
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -115,7 +134,7 @@ fun ItemDetailScreen(
                 onClick = { showEditDialog = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Edit Barang")
+                Text("Edit $itemTerm")
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -142,7 +161,7 @@ fun ItemDetailScreen(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Hapus Barang")
+                Text("Hapus $itemTerm")
             }
         }
     }
@@ -151,10 +170,13 @@ fun ItemDetailScreen(
         EditItemDialog(
             item = item,
             categories = categories,
-            sizes = sizes,
+            attributes = attributes,
+            attributeOptions = attributeOptions,
+            initialAttributeValues = attributeValuesForItem,
+            itemTerm = itemTerm,
             onDismiss = { showEditDialog = false },
-            onSave = { updatedItem ->
-                viewModel.updateItem(updatedItem)
+            onSave = { updatedItem, values ->
+                viewModel.updateItem(updatedItem, values)
                 showEditDialog = false
             }
         )
@@ -162,7 +184,7 @@ fun ItemDetailScreen(
 
     if (showDeleteDialog) {
         ConfirmDialog(
-            title = "Hapus Item",
+            title = "Hapus $itemTerm",
             message = "Hapus \"${item.name}\"? Tindakan ini tidak bisa dibatalkan.",
             onDismiss = { showDeleteDialog = false },
             onConfirm = {

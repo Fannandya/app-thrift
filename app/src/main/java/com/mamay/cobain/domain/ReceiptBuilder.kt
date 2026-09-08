@@ -50,14 +50,30 @@ fun buildReceiptText(
     rule('-')
 
     for (line in lines) {
-        val label = if (line.size.isBlank()) line.itemName else "${line.itemName} (${line.size})"
+        val extra = line.attributesSummary.ifBlank { line.size }
+        val label = if (extra.isBlank()) line.itemName else "${line.itemName} ($extra)"
         out.appendLine(label)
+        if (line.discountPercent > 0 && line.originalSellPrice > line.sellPrice) {
+            out.appendLine(
+                padRow("  ${line.quantity} x ${formatRupiah(line.originalSellPrice)}", "")
+            )
+            out.appendLine(
+                padRow(
+                    "  Diskon ${line.discountPercent}%",
+                    "-${formatRupiah((line.originalSellPrice - line.sellPrice) * line.quantity)}"
+                )
+            )
+        }
         out.appendLine(
             padRow("  ${line.quantity} x ${formatRupiah(line.sellPrice)}", formatRupiah(line.totalPrice))
         )
     }
 
     rule('-')
+    val itemDiscountTotal = lines.sumOf { (it.originalSellPrice - it.sellPrice).coerceAtLeast(0) * it.quantity }
+    if (itemDiscountTotal > 0) {
+        out.appendLine(padRow("Diskon Barang", "-${formatRupiah(itemDiscountTotal)}"))
+    }
     out.appendLine(padRow("Subtotal", formatRupiah(transaction.subtotal)))
     if (transaction.discountAmount > 0) {
         val label = if (transaction.discountType == DiscountType.PERCENT.name) {

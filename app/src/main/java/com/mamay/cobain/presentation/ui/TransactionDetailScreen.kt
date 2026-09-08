@@ -65,9 +65,9 @@ fun TransactionDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -94,9 +94,15 @@ fun TransactionDetailScreen(
             )
 
             lines.forEach { line ->
+                val extra = line.attributesSummary.ifBlank { line.size }
+                val priceLabel = if (line.discountPercent > 0 && line.originalSellPrice > line.sellPrice) {
+                    "${formatRupiah(line.originalSellPrice)} → ${formatRupiah(line.sellPrice)} " +
+                        "(-${line.discountPercent}%) x ${line.quantity}"
+                } else {
+                    "${line.quantity} x ${formatRupiah(line.sellPrice)}"
+                }
                 DetailRow(
-                    label = "${line.itemName}${if (line.size.isBlank()) "" else " (${line.size})"}" +
-                        "\n${line.quantity} x ${formatRupiah(line.sellPrice)}",
+                    label = "${line.itemName}${if (extra.isBlank()) "" else " ($extra)"}\n$priceLabel",
                     value = formatRupiah(line.totalPrice)
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -104,6 +110,16 @@ fun TransactionDetailScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            val itemDiscountTotal = lines.sumOf {
+                (it.originalSellPrice - it.sellPrice).coerceAtLeast(0) * it.quantity
+            }
+            if (itemDiscountTotal > 0) {
+                DetailRow(
+                    label = "Diskon Barang",
+                    value = "-${formatRupiah(itemDiscountTotal)}",
+                    valueColor = MaterialTheme.colorScheme.error
+                )
+            }
             DetailRow("Subtotal", formatRupiah(transaction.subtotal))
             if (transaction.discountAmount > 0) {
                 DetailRow(

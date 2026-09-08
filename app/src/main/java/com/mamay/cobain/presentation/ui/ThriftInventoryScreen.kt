@@ -22,14 +22,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mamay.cobain.domain.indexActiveDiscounts
 import com.mamay.cobain.presentation.ui.components.SearchField
 import com.mamay.cobain.presentation.viewmodel.ThriftViewModel
 
@@ -47,16 +49,29 @@ fun ThriftInventoryScreen(
     viewModel: ThriftViewModel,
     modifier: Modifier = Modifier
 ) {
-    val items by viewModel.items.collectAsState()
-    val categories by viewModel.categories.collectAsState()
-    val sizes by viewModel.sizes.collectAsState()
-    val profile by viewModel.storeProfile.collectAsState()
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val attributes by viewModel.attributes.collectAsStateWithLifecycle()
+    val attributeOptions by viewModel.attributeOptions.collectAsStateWithLifecycle()
+    val attributeValues by viewModel.attributeValues.collectAsStateWithLifecycle()
+    val discounts by viewModel.discounts.collectAsStateWithLifecycle()
+    val discountItems by viewModel.discountItems.collectAsStateWithLifecycle()
+    val profile by viewModel.storeProfile.collectAsStateWithLifecycle()
+    val itemTerm = profile.itemTerm
+
+    val now = remember { System.currentTimeMillis() }
+
+    val valuesByItem = remember(attributeValues) {
+        attributeValues.groupBy { it.itemId }.mapValues { entry -> entry.value.associate { it.attributeId to it.value } }
+    }
+    val activeByItem = remember(discounts, discountItems, now) {
+        indexActiveDiscounts(discounts, discountItems, now)
+    }
 
     var selectedItemId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val itemForDetail = selectedItemId?.let { id -> items.find { it.id == id } }
     if (selectedItemId != null && itemForDetail == null) {
-        // Item was deleted (e.g. from another session/screen) while its detail was open.
         LaunchedEffect(selectedItemId) { selectedItemId = null }
     }
 
@@ -64,7 +79,11 @@ fun ThriftInventoryScreen(
         ItemDetailScreen(
             item = itemForDetail,
             categories = categories,
-            sizes = sizes,
+            attributes = attributes,
+            attributeOptions = attributeOptions,
+            attributeValuesForItem = valuesByItem[itemForDetail.id].orEmpty(),
+            activeDiscount = displayDiscountFrom(itemForDetail, activeByItem[itemForDetail.id].orEmpty()),
+            itemTerm = itemTerm,
             viewModel = viewModel,
             onBack = { selectedItemId = null },
             modifier = modifier
@@ -73,38 +92,51 @@ fun ThriftInventoryScreen(
     }
 
     val categoryNameById = remember(categories) { categories.associate { it.id to it.name } }
-    val sizeNameById = remember(sizes) { sizes.associate { it.id to it.name } }
     val availableCategories = remember(items, categories) {
         categories.filter { category -> items.any { it.categoryId == category.id } }
     }
-    // rememberSaveable, seperti selectedItemId: filter yang dipilih kasir hilang saat
-    // rotasi kalau hanya remember. Enum tidak otomatis Saveable, jadi yang disimpan
-    // adalah nama konstantanya.
+    val attributeOptionsPresent = remember(items, attributes, valuesByItem) {
+        attributes.sortedBy { it.displayOrder }.associateWith { attr ->
+            items.mapNotNull { valuesByItem[it.id]?.get(attr.id)?.takeIf { v -> v.isNotBlank() } }
+                .distinct()
+                .sorted()
+        }
+    }
     var selectedCategoryId by rememberSaveable { mutableStateOf(ALL_CATEGORIES_ID) }
     var selectedStatusFilterName by rememberSaveable { mutableStateOf(StatusFilter.ALL.name) }
     val selectedStatusFilter = StatusFilter.valueOf(selectedStatusFilterName)
+    // attributeId -> chosen value; absence means "no filter on that attribute".
+    val attributeFilters = remember { mutableStateMapOf<Int, String>() }
     var showAddDialog by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
 
-    val filteredItems = items
-        .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
-        .filter { selectedCategoryId == ALL_CATEGORIES_ID || it.categoryId == selectedCategoryId }
-        .filter {
-            when (selectedStatusFilter) {
-                StatusFilter.ALL -> true
-                StatusFilter.AVAILABLE -> !it.isSold
-                StatusFilter.SOLD -> it.isSold
+    val filteredItems = remember(
+        items, query, selectedCategoryId, selectedStatusFilterName, attributeFilters.toMap(), valuesByItem
+    ) {
+        val q = query.trim()
+        items
+            .filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
+            .filter { selectedCategoryId == ALL_CATEGORIES_ID || it.categoryId == selectedCategoryId }
+            .filter {
+                when (selectedStatusFilter) {
+                    StatusFilter.ALL -> true
+                    StatusFilter.AVAILABLE -> !it.isSold
+                    StatusFilter.SOLD -> it.isSold
+                }
             }
-        }
+            .filter { item ->
+                attributeFilters.all { (attrId, value) -> valuesByItem[item.id]?.get(attrId) == value }
+            }
+    }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Inventaris \u00b7 ${profile.storeName.ifBlank { "Toko Belum Diberi Nama" }}") },
+                title = { Text("Inventaris $itemTerm · ${profile.storeName.ifBlank { "Toko Belum Diberi Nama" }}") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -113,7 +145,7 @@ fun ThriftInventoryScreen(
                 onClick = { showAddDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Tambah barang")
+                Icon(Icons.Default.Add, contentDescription = "Tambah $itemTerm")
             }
         }
     ) { innerPadding ->
@@ -126,7 +158,7 @@ fun ThriftInventoryScreen(
             SearchField(
                 query = query,
                 onQueryChange = { query = it },
-                placeholder = "Cari nama barang..."
+                placeholder = "Cari nama $itemTerm..."
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -160,14 +192,38 @@ fun ThriftInventoryScreen(
                 }
             }
 
+            // One filter row per attribute, over the distinct values present on the
+            // items currently in stock (precomputed in attributeOptionsPresent).
+            attributeOptionsPresent.forEach { (attr, present) ->
+                if (present.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            FilterChip(
+                                selected = !attributeFilters.containsKey(attr.id),
+                                onClick = { attributeFilters.remove(attr.id) },
+                                label = { Text("Semua ${attr.name}") }
+                            )
+                        }
+                        items(present, key = { it }) { value ->
+                            FilterChip(
+                                selected = attributeFilters[attr.id] == value,
+                                onClick = { attributeFilters[attr.id] = value },
+                                label = { Text(value) }
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             if (filteredItems.isEmpty()) {
                 Text(
                     text = if (query.isNotBlank()) {
-                        "Tidak ada barang dengan nama \"$query\"."
+                        "Tidak ada $itemTerm dengan nama \"$query\"."
                     } else {
-                        "Tidak ada barang yang cocok dengan filter ini."
+                        "Tidak ada $itemTerm yang cocok dengan filter ini."
                     },
                     modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -178,7 +234,8 @@ fun ThriftInventoryScreen(
                         ThriftItemCard(
                             item = item,
                             categoryName = categoryNameById[item.categoryId] ?: "",
-                            sizeName = sizeNameById[item.sizeId] ?: "",
+                            attributesText = attributesTextFrom(valuesByItem[item.id].orEmpty(), attributes),
+                            activeDiscount = displayDiscountFrom(item, activeByItem[item.id].orEmpty()),
                             onItemClick = { selectedItemId = it.id }
                         )
                         Spacer(modifier = Modifier.padding(bottom = 8.dp))
@@ -191,10 +248,12 @@ fun ThriftInventoryScreen(
     if (showAddDialog) {
         AddItemDialog(
             categories = categories,
-            sizes = sizes,
+            attributes = attributes,
+            attributeOptions = attributeOptions,
+            itemTerm = itemTerm,
             onDismiss = { showAddDialog = false },
-            onSave = { name, sizeId, categoryId, quantity, buyPrice, sellPrice ->
-                viewModel.addItem(name, sizeId, categoryId, quantity, buyPrice, sellPrice)
+            onSave = { name, categoryId, quantity, buyPrice, sellPrice, values ->
+                viewModel.addItem(name, categoryId, quantity, buyPrice, sellPrice, values)
                 showAddDialog = false
             }
         )

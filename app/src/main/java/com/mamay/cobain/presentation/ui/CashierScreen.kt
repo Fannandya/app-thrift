@@ -1,6 +1,7 @@
 package com.mamay.cobain.presentation.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,7 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,15 +46,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.mamay.cobain.data.entity.Discount
 import com.mamay.cobain.data.entity.ThriftItem
 import com.mamay.cobain.domain.DiscountType
+import com.mamay.cobain.domain.applyPercent
 import com.mamay.cobain.domain.buildReceiptText
 import com.mamay.cobain.domain.calculateCheckoutTotals
+import com.mamay.cobain.domain.effectiveDiscount
+import com.mamay.cobain.domain.indexActiveDiscounts
 import com.mamay.cobain.presentation.ui.components.ReceiptDialog
 import com.mamay.cobain.presentation.ui.components.SearchField
 import com.mamay.cobain.presentation.viewmodel.CartLine
@@ -61,22 +67,60 @@ import com.mamay.cobain.util.formatRupiah
 
 private const val ALL_CATEGORIES_ID = -1
 
+/** Per-line pricing after resolving the item's discount for "now". */
+private data class LinePricing(
+    val unitFinal: Int,
+    val unitOriginal: Int,
+    val percent: Int,
+    val active: List<Discount>,
+    val needsChoice: Boolean
+)
+
+private fun priceLine(
+    item: ThriftItem,
+    overrideId: Int?,
+    active: List<Discount>
+): LinePricing {
+    val effective = effectiveDiscount(item, active, overrideId)
+    val percent = effective?.percent ?: 0
+    return LinePricing(
+        unitFinal = applyPercent(item.sellPrice, percent),
+        unitOriginal = item.sellPrice,
+        percent = percent,
+        active = active,
+        needsChoice = active.size > 1 && effective == null
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CashierScreen(
     viewModel: ThriftViewModel,
     modifier: Modifier = Modifier
 ) {
-    val items by viewModel.items.collectAsState()
-    val categories by viewModel.categories.collectAsState()
-    val sizes by viewModel.sizes.collectAsState()
-    val cart by viewModel.cart.collectAsState()
-    val profile by viewModel.storeProfile.collectAsState()
-    val lastReceipt by viewModel.lastReceipt.collectAsState()
-    val availableItems = items.filter { it.quantity > 0 && !it.isSold }
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val attributes by viewModel.attributes.collectAsStateWithLifecycle()
+    val attributeValues by viewModel.attributeValues.collectAsStateWithLifecycle()
+    val discounts by viewModel.discounts.collectAsStateWithLifecycle()
+    val discountItems by viewModel.discountItems.collectAsStateWithLifecycle()
+    val cart by viewModel.cart.collectAsStateWithLifecycle()
+    val profile by viewModel.storeProfile.collectAsStateWithLifecycle()
+    val lastReceipt by viewModel.lastReceipt.collectAsStateWithLifecycle()
+    val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
+    val itemTerm = profile.itemTerm
+
+    val now = remember { System.currentTimeMillis() }
+    val availableItems = remember(items) { items.filter { it.quantity > 0 && !it.isSold } }
     val categoryNameById = remember(categories) { categories.associate { it.id to it.name } }
-    val sizeNameById = remember(sizes) { sizes.associate { it.id to it.name } }
     val cartQuantityById = remember(cart) { cart.associate { it.item.id to it.quantity } }
+    val overrideById = remember(cart) { cart.associate { it.item.id to it.overrideDiscountId } }
+    val valuesByItem = remember(attributeValues) {
+        attributeValues.groupBy { it.itemId }.mapValues { e -> e.value.associate { it.attributeId to it.value } }
+    }
+    val activeByItem = remember(discounts, discountItems, now) {
+        indexActiveDiscounts(discounts, discountItems, now)
+    }
 
     val availableCategories = remember(availableItems, categories) {
         categories.filter { category -> availableItems.any { it.categoryId == category.id } }
@@ -85,9 +129,12 @@ fun CashierScreen(
     var showCheckoutDialog by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
 
-    val filteredItems = availableItems
-        .filter { selectedCategoryId == ALL_CATEGORIES_ID || it.categoryId == selectedCategoryId }
-        .filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+    val filteredItems = remember(availableItems, selectedCategoryId, query) {
+        val q = query.trim()
+        availableItems
+            .filter { selectedCategoryId == ALL_CATEGORIES_ID || it.categoryId == selectedCategoryId }
+            .filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
+    }
 
     Column(
         modifier = modifier
@@ -95,12 +142,12 @@ fun CashierScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Kasir \u00b7 ${profile.storeName.ifBlank { "Toko Belum Diberi Nama" }}",
+            text = "Kasir · ${profile.storeName.ifBlank { "Toko Belum Diberi Nama" }}",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = "Layani penjualan dengan memilih barang yang dibeli",
+            text = "Layani penjualan dengan memilih $itemTerm yang dibeli",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -110,7 +157,7 @@ fun CashierScreen(
         SearchField(
             query = query,
             onQueryChange = { query = it },
-            placeholder = "Cari nama barang..."
+            placeholder = "Cari nama $itemTerm..."
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -138,9 +185,9 @@ fun CashierScreen(
             Box(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (query.isNotBlank()) {
-                        "Tidak ada barang dengan nama \"$query\"."
+                        "Tidak ada $itemTerm dengan nama \"$query\"."
                     } else {
-                        "Tidak ada barang tersedia di kategori ini."
+                        "Tidak ada $itemTerm tersedia di kategori ini."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -154,10 +201,12 @@ fun CashierScreen(
             ) {
                 items(filteredItems, key = { it.id }) { item ->
                     val cartQuantity = cartQuantityById[item.id] ?: 0
+                    val pricing = priceLine(item, overrideById[item.id], activeByItem[item.id].orEmpty())
                     CashierItemCard(
                         item = item,
                         categoryName = categoryNameById[item.categoryId] ?: "",
-                        sizeName = sizeNameById[item.sizeId] ?: "",
+                        attributesText = attributesTextFrom(valuesByItem[item.id].orEmpty(), attributes),
+                        pricing = pricing,
                         cartQuantity = cartQuantity,
                         onAdd = { viewModel.addToCart(item) },
                         onIncrement = { viewModel.updateCartQuantity(item, cartQuantity + 1) },
@@ -169,30 +218,38 @@ fun CashierScreen(
 
         if (cart.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
+            val cartTotal = cart.sumOf { line ->
+                priceLine(line.item, line.overrideDiscountId, activeByItem[line.item.id].orEmpty())
+                    .unitFinal.toLong() * line.quantity
+            }
             CartSummaryBar(
-                cart = cart,
+                itemCount = cart.sumOf { it.quantity },
+                total = cartTotal,
                 onCheckoutClick = { showCheckoutDialog = true }
             )
         }
     }
 
-    // Muncul otomatis begitu transaksi tersimpan, jadi kasir tidak perlu mencari
-    // menu apa pun untuk memberi struk ke pembeli.
-    lastReceipt?.let { receipt ->
-        ReceiptDialog(
-            receiptText = buildReceiptText(profile, receipt.transaction, receipt.lines),
-            onDismiss = { viewModel.consumeReceipt() }
-        )
+    // Hold the receipt back until the "Transaksi berhasil" box (owned by MainScreen)
+    // has been acknowledged, so the success confirmation comes first.
+    if (successMessage == null) {
+        lastReceipt?.let { receipt ->
+            ReceiptDialog(
+                receiptText = buildReceiptText(profile, receipt.transaction, receipt.lines),
+                onDismiss = { viewModel.consumeReceipt() }
+            )
+        }
     }
 
     if (showCheckoutDialog) {
         CheckoutDialog(
             cart = cart,
-            sizeNameById = sizeNameById,
+            pricingOf = { line -> priceLine(line.item, line.overrideDiscountId, activeByItem[line.item.id].orEmpty()) },
             onDismiss = { showCheckoutDialog = false },
             onIncrement = { item -> viewModel.updateCartQuantity(item, (cartQuantityById[item.id] ?: 0) + 1) },
             onDecrement = { item -> viewModel.updateCartQuantity(item, (cartQuantityById[item.id] ?: 0) - 1) },
             onRemove = { item -> viewModel.removeFromCart(item) },
+            onPickDiscount = { item, id -> viewModel.setCartLineDiscount(item, id) },
             onConfirm = { type, value, paid ->
                 viewModel.checkout(type, value, paid)
                 showCheckoutDialog = false
@@ -202,10 +259,43 @@ fun CashierScreen(
 }
 
 @Composable
+private fun DiscountPercentChip(percent: Int) {
+    AssistChip(onClick = {}, label = { Text("-$percent%") })
+}
+
+@Composable
+private fun PriceBlock(pricing: LinePricing) {
+    if (pricing.percent > 0) {
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = formatRupiah(pricing.unitOriginal),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textDecoration = TextDecoration.LineThrough
+            )
+            Text(
+                text = formatRupiah(pricing.unitFinal),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    } else {
+        Text(
+            text = formatRupiah(pricing.unitOriginal),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
 private fun CashierItemCard(
     item: ThriftItem,
     categoryName: String,
-    sizeName: String,
+    attributesText: String,
+    pricing: LinePricing,
     cartQuantity: Int,
     onAdd: () -> Unit,
     onIncrement: () -> Unit,
@@ -228,7 +318,7 @@ private fun CashierItemCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Ukuran: ${sizeName.ifBlank { "-" }} · Kategori: ${categoryName.ifBlank { "-" }}",
+                        text = "${attributesText.ifBlank { "-" }} · Kategori: ${categoryName.ifBlank { "-" }}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -241,12 +331,11 @@ private fun CashierItemCard(
                             MaterialTheme.colorScheme.error
                     )
                 }
-                Text(
-                    text = formatRupiah(item.sellPrice),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                PriceBlock(pricing)
+            }
+            if (pricing.percent > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                DiscountPercentChip(pricing.percent)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -294,17 +383,15 @@ private fun QuantityStepper(
 
 @Composable
 private fun CartSummaryBar(
-    cart: List<CartLine>,
+    itemCount: Int,
+    total: Long,
     onCheckoutClick: () -> Unit
 ) {
-    val itemCount = cart.sumOf { it.quantity }
-    val total = cart.sumOf { it.item.sellPrice * it.quantity }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest, RoundedCornerShape(12.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -331,22 +418,24 @@ private fun CartSummaryBar(
 @Composable
 private fun CheckoutDialog(
     cart: List<CartLine>,
-    sizeNameById: Map<Int, String>,
+    pricingOf: (CartLine) -> LinePricing,
     onDismiss: () -> Unit,
     onIncrement: (ThriftItem) -> Unit,
     onDecrement: (ThriftItem) -> Unit,
     onRemove: (ThriftItem) -> Unit,
+    onPickDiscount: (ThriftItem, Int?) -> Unit,
     onConfirm: (DiscountType, Int, Int) -> Unit
 ) {
     var discountType by remember { mutableStateOf(DiscountType.NONE) }
     var discountValue by remember { mutableStateOf("") }
     var paidAmount by remember { mutableStateOf("") }
 
-    // Satu sumber kebenaran untuk semua angka di dialog ini: subtotal, diskon, total,
-    // dan kembalian dihitung ulang oleh fungsi yang sama yang dipakai ViewModel saat
-    // menyimpan, jadi yang dilihat kasir tidak akan pernah beda dari yang tercatat.
+    val pricedLines = cart.map { it to pricingOf(it) }
+    val itemDiscountTotal = pricedLines.sumOf { (line, p) -> (p.unitOriginal - p.unitFinal).toLong() * line.quantity }
+    val anyNeedsChoice = pricedLines.any { (_, p) -> p.needsChoice }
+
     val totals = calculateCheckoutTotals(
-        subtotal = cart.sumOf { it.item.sellPrice * it.quantity },
+        subtotal = pricedLines.sumOf { (line, p) -> p.unitFinal * line.quantity },
         discountType = discountType,
         discountValue = discountValue.toIntOrNull() ?: 0,
         paidAmount = paidAmount.toIntOrNull() ?: 0
@@ -361,30 +450,37 @@ private fun CheckoutDialog(
             } else {
                 Column(
                     modifier = Modifier
-                        // Cukup tinggi supaya kolom "Uang Dibayar" dan baris kembalian
-                        // ikut terlihat tanpa menggulir: itu kontrol terpenting di kasir,
-                        // dan menyembunyikannya di bawah lipatan memperlambat antrean.
                         .heightIn(max = 520.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    cart.forEachIndexed { index, line ->
+                    pricedLines.forEachIndexed { index, (line, pricing) ->
                         if (index > 0) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                         CartLineRow(
                             line = line,
-                            sizeName = sizeNameById[line.item.sizeId] ?: "",
+                            pricing = pricing,
                             onIncrement = { onIncrement(line.item) },
                             onDecrement = { onDecrement(line.item) },
-                            onRemove = { onRemove(line.item) }
+                            onRemove = { onRemove(line.item) },
+                            onPickDiscount = { id -> onPickDiscount(line.item, id) }
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    if (anyNeedsChoice) {
+                        Text(
+                            text = "Pilih diskon untuk barang bertanda sebelum melanjutkan.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     Text(
-                        text = "Diskon",
+                        text = "Diskon Transaksi",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -429,6 +525,13 @@ private fun CheckoutDialog(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    if (itemDiscountTotal > 0) {
+                        SummaryRow(
+                            label = "Diskon Barang",
+                            value = "-${formatRupiah(itemDiscountTotal)}",
+                            valueColor = MaterialTheme.colorScheme.error
+                        )
+                    }
                     SummaryRow("Subtotal", formatRupiah(totals.subtotal))
                     if (totals.discountAmount > 0) {
                         SummaryRow(
@@ -488,7 +591,7 @@ private fun CheckoutDialog(
                 onClick = {
                     onConfirm(discountType, discountValue.toIntOrNull() ?: 0, paidAmount.toIntOrNull() ?: 0)
                 },
-                enabled = cart.isNotEmpty() && totals.isPaidEnough
+                enabled = cart.isNotEmpty() && totals.isPaidEnough && !anyNeedsChoice
             ) {
                 Text("Selesaikan Transaksi")
             }
@@ -501,43 +604,72 @@ private fun CheckoutDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CartLineRow(
     line: CartLine,
-    sizeName: String,
+    pricing: LinePricing,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onPickDiscount: (Int?) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = line.item.name,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = line.item.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (pricing.percent > 0) {
+                    Text(
+                        text = "${formatRupiah(pricing.unitOriginal)} → ${formatRupiah(pricing.unitFinal)} " +
+                            "(-${pricing.percent}%) x ${line.quantity}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "${formatRupiah(pricing.unitFinal)} x ${line.quantity}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            QuantityStepper(
+                quantity = line.quantity,
+                onIncrement = onIncrement,
+                onDecrement = onDecrement
             )
-            Text(
-                text = "Ukuran: ${sizeName.ifBlank { "-" }} · ${formatRupiah(line.item.sellPrice)} x ${line.quantity}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Hapus dari keranjang",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
         }
-        QuantityStepper(
-            quantity = line.quantity,
-            onIncrement = onIncrement,
-            onDecrement = onDecrement
-        )
-        IconButton(onClick = onRemove) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Hapus dari keranjang",
-                tint = MaterialTheme.colorScheme.error
-            )
+        if (pricing.active.size > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (pricing.needsChoice) "Pilih diskon:" else "Diskon:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (pricing.needsChoice) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                pricing.active.forEach { discount ->
+                    FilterChip(
+                        selected = line.overrideDiscountId == discount.id,
+                        onClick = { onPickDiscount(discount.id) },
+                        label = { Text("${discount.percent}%") }
+                    )
+                }
+            }
         }
     }
 }
