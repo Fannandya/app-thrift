@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,36 +43,44 @@ fun SalesChart(data: List<DailySales>, modifier: Modifier = Modifier) {
         return
     }
 
-    val modelProducer = remember { CartesianChartModelProducer() }
-    LaunchedEffect(data) {
-        modelProducer.runTransaction {
-            columnSeries { series(data.map { it.total }) }
+    // key/remember on data.size: switching the Dashboard range shrinks the model
+    // (30 -> 7 buckets). Without rebuilding the producer and scroll state, Vico
+    // 2.1.0 re-applies the retained end-scroll/zoom (sized for 30 wide columns) to
+    // a 7-bucket model that fits on screen, and the layout math divides by a
+    // non-positive max-scroll distance -> crash. A fresh producer + scroll state per
+    // bucket count sidesteps it; a 7-bucket chart also starts at the left since it
+    // already fits.
+    key(data.size) {
+        val modelProducer = remember(data.size) { CartesianChartModelProducer() }
+        LaunchedEffect(data) {
+            modelProducer.runTransaction {
+                columnSeries { series(data.map { it.total }) }
+            }
         }
-    }
 
-    ProvideVicoTheme(rememberM3VicoTheme()) {
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberColumnCartesianLayer(),
-                startAxis = VerticalAxis.rememberStart(
-                    valueFormatter = CartesianValueFormatter { _, value, _ ->
-                        formatRupiah(value.toLong())
-                    }
+        ProvideVicoTheme(rememberM3VicoTheme()) {
+            CartesianChartHost(
+                chart = rememberCartesianChart(
+                    rememberColumnCartesianLayer(),
+                    startAxis = VerticalAxis.rememberStart(
+                        valueFormatter = CartesianValueFormatter { _, value, _ ->
+                            formatRupiah(value.toLong())
+                        }
+                    ),
+                    bottomAxis = HorizontalAxis.rememberBottom(
+                        valueFormatter = CartesianValueFormatter { _, value, _ ->
+                            data.getOrNull(value.toInt())?.label.orEmpty()
+                        }
+                    )
                 ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    valueFormatter = CartesianValueFormatter { _, value, _ ->
-                        data.getOrNull(value.toInt())?.label.orEmpty()
-                    }
-                )
-            ),
-            modelProducer = modelProducer,
-            // Mulai dari ujung kanan: kolom hari ini yang paling dibutuhkan pemilik
-            // toko, dan grafik 30 hari lebih lebar dari layar HP - dengan awal di kiri
-            // yang terlihat justru hari-hari terlama, biasanya masih kosong.
-            scrollState = rememberVicoScrollState(initialScroll = Scroll.Absolute.End),
-            modifier = modifier
-                .fillMaxWidth()
-                .height(200.dp)
-        )
+                modelProducer = modelProducer,
+                scrollState = rememberVicoScrollState(
+                    initialScroll = if (data.size <= 7) Scroll.Absolute.Start else Scroll.Absolute.End
+                ),
+                modifier = modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            )
+        }
     }
 }

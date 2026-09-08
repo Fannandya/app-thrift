@@ -1,6 +1,8 @@
 package com.mamay.cobain.domain
 
 import com.mamay.cobain.data.entity.SaleTransaction
+import com.mamay.cobain.data.entity.ThriftItem
+import com.mamay.cobain.data.entity.ThriftSale
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -69,4 +71,61 @@ fun dailySalesSeries(
     }
 
     return buckets.mapIndexed { index, bucket -> bucket.copy(total = totals[index]) }
+}
+
+// --- Dashboard aggregates -------------------------------------------------------
+//
+// All take lists the caller has already filtered to the selected time range, so the
+// same Semua / 7 Hari / 30 Hari chip that drives the chart drives these too.
+
+/** Cost of everything sold in range, from the per-line cost snapshot on [ThriftSale]. */
+fun costOfGoodsSold(salesInRange: List<ThriftSale>): Long =
+    salesInRange.sumOf { it.buyPrice.toLong() * it.quantity }
+
+/**
+ * Revenue after discount (transaction totals, consistent with [dailySalesSeries])
+ * minus the cost of goods sold.
+ */
+fun grossProfit(transactionsInRange: List<SaleTransaction>, salesInRange: List<ThriftSale>): Long =
+    transactionsInRange.sumOf { it.total.toLong() } - costOfGoodsSold(salesInRange)
+
+/** Total per-item discount handed out in range: (original - final) * qty per line. */
+fun itemDiscountGiven(salesInRange: List<ThriftSale>): Long =
+    salesInRange.sumOf { (it.originalSellPrice.toLong() - it.sellPrice) * it.quantity }
+
+/**
+ * Percentage change of [current] against [previous]. Returns null when [previous]
+ * is not positive - there is no baseline to compare against (e.g. the "Semua"
+ * range, or the shop's first week).
+ */
+fun revenueDelta(current: Long, previous: Long): Double? =
+    if (previous <= 0L) null else (current - previous) * 100.0 / previous
+
+data class TransactionStats(val count: Int, val average: Long)
+
+fun transactionStats(transactionsInRange: List<SaleTransaction>): TransactionStats {
+    if (transactionsInRange.isEmpty()) return TransactionStats(0, 0)
+    val total = transactionsInRange.sumOf { it.total.toLong() }
+    return TransactionStats(transactionsInRange.size, total / transactionsInRange.size)
+}
+
+data class TopSellingItem(val name: String, val quantity: Int, val revenue: Long)
+
+fun topSellingItems(salesInRange: List<ThriftSale>, limit: Int = 5): List<TopSellingItem> =
+    salesInRange
+        .groupBy { it.itemName }
+        .map { (name, lines) ->
+            TopSellingItem(name, lines.sumOf { it.quantity }, lines.sumOf { it.totalPrice.toLong() })
+        }
+        .sortedWith(compareByDescending<TopSellingItem> { it.quantity }.thenByDescending { it.revenue })
+        .take(limit)
+
+data class LowStockReport(val items: List<ThriftItem>, val outOfStockCount: Int)
+
+/** Unsold items at or below [threshold]; [outOfStockCount] is how many of those are at zero. */
+fun lowStock(items: List<ThriftItem>, threshold: Int): LowStockReport {
+    val low = items
+        .filter { !it.isSold && it.quantity <= threshold }
+        .sortedBy { it.quantity }
+    return LowStockReport(low, low.count { it.quantity <= 0 })
 }
