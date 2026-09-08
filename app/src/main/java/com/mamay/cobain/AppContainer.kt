@@ -28,7 +28,8 @@ class AppContainer(context: Context) {
     ).addMigrations(
         AppDatabase.MIGRATION_1_2,
         AppDatabase.MIGRATION_2_3,
-        AppDatabase.MIGRATION_3_4
+        AppDatabase.MIGRATION_3_4,
+        AppDatabase.MIGRATION_4_5
     ).build()
 
     val thriftItemRepository: ThriftItemRepository by lazy {
@@ -63,5 +64,15 @@ class AppContainer(context: Context) {
         val exportFile = File(exportDir, "cobain-backup-$stamp.db")
         dbFile.copyTo(exportFile, overwrite = true)
         exportFile
+    }
+
+    /**
+     * Wipes every table (keeps the schema/version). Room's InvalidationTracker then
+     * makes every observing Flow re-emit empty, so the whole UI drops to a
+     * fresh-install state on its own. Like [exportDatabase], this is DB
+     * infrastructure, not ViewModel state.
+     */
+    suspend fun resetStore() = withContext(Dispatchers.IO) {
+        database.clearAllTables()
     }
 }

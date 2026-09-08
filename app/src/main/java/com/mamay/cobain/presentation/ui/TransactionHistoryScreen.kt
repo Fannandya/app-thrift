@@ -18,7 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,9 +48,9 @@ fun TransactionHistoryScreen(
     viewModel: ThriftViewModel,
     modifier: Modifier = Modifier
 ) {
-    val transactions by viewModel.transactions.collectAsState()
-    val sales by viewModel.sales.collectAsState()
-    val profile by viewModel.storeProfile.collectAsState()
+    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
+    val sales by viewModel.sales.collectAsStateWithLifecycle()
+    val profile by viewModel.storeProfile.collectAsStateWithLifecycle()
 
     val linesByTransaction = remember(sales) { sales.groupBy { it.transactionId } }
 
